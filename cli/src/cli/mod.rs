@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     fs::{OpenOptions, write},
     io::{self, Read, Seek, SeekFrom, Write, stderr, stdout},
     path::{Path, PathBuf},
@@ -16,14 +16,17 @@ use chariot_core::{
     collect_all_hashes,
     config::{
         Config, GlobalEnvironment,
-        package::PackagePlatform,
+        package::{Package, PackagePlatform},
         script::{Script, ScriptLanguage},
+        source::Source,
     },
     execenv::ExecEnv,
+    executor::{BuildManager, FailureMode},
+    graph::BuildGraphBuilder,
     ledger::Ledger,
-    package::resolve_package_runtime_dependencies,
     resolve_effective_hashes,
     store::Store,
+    tracer::{CapturingLogger, Tracer},
     workdir::{WorkDirectory, WorkDirectoryParent},
     xbps::package_install,
 };
@@ -36,14 +39,14 @@ use chariot_util::{
 use clap::{Args, CommandFactory, Parser, Subcommand, value_parser};
 use clap_complete::{Shell, generate};
 use dialoguer::Confirm;
-use indicatif::{ProgressBar, ProgressStyle};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     cli::support::setup_lua_lsp,
     config::{CliConfig, parse_cli_config},
-    util::ProgressBarWriter,
+    terminal::Terminal,
+    tracer::CliTracer,
 };
 
 mod support;
@@ -244,6 +247,9 @@ struct InstallOptions {
     #[arg(long, help = "force installation, even if the package is already installed")]
     force: bool,
 
+    #[arg(long, help = "keep building unrelated packages after a failure instead of stopping immediately")]
+    keep_going: bool,
+
     #[arg(required = true, help = "packages to build and install")]
     packages: Vec<String>,
 
@@ -339,13 +345,11 @@ fn with_state<T>(state_path: &Path, f: impl FnOnce(&mut State) -> Result<T>) -> 
     Ok(result)
 }
 
-fn progress_bar() -> ProgressBar {
-    let pb = ProgressBar::no_length().with_style(ProgressStyle::with_template("{elapsed:.yellow.light} | {prefix:.bold} {wide_msg:.dim}").unwrap());
-    pb.enable_steady_tick(Duration::from_millis(100));
-    pb
-}
-
-fn build_prepare(build_opts: CommonBuildOptions, local_config: &CliConfig) -> Result<(CoreContext, Config, HashSet<(String, u128)>)> {
+fn build_prepare(
+    build_opts: CommonBuildOptions,
+    local_config: &CliConfig,
+    terminal: &Arc<Terminal>,
+) -> Result<(CoreContext, Config, HashSet<(String, u128)>)> {
     let options = HashMap::from_iter(build_opts.options);
 
     let cache_path = PathBuf::from(build_opts.cache);
@@ -435,11 +439,11 @@ fn build_prepare(build_opts: CommonBuildOptions, local_config: &CliConfig) -> Re
         None => {
             info!("No rootfs found");
 
-            let pb = progress_bar()
-                .with_message("Downloading...")
-                .with_prefix(format!("Initializing rootfs `{}`", base_config.rootfs.version));
+            let bar = terminal.add_bar(format!("Initializing rootfs `{}`", base_config.rootfs.version));
 
-            let mut pb_writer = ProgressBarWriter::init(&pb);
+            terminal.set_bar_message(bar, "Downloading...");
+
+            let mut writer = terminal.get_bar_writer(bar);
 
             let rootfs = RootFS::init(
                 &&build_opts.rootfs,
@@ -448,11 +452,11 @@ fn build_prepare(build_opts: CommonBuildOptions, local_config: &CliConfig) -> Re
                     version: base_config.rootfs.version,
                     hash: base_config.rootfs.hash.clone(),
                 },
-                &mut pb_writer,
+                &mut writer,
             )
             .context("Failed to initialize rootfs")?;
 
-            pb.finish_and_clear();
+            terminal.remove_bar(bar);
 
             info!("Successfully initialized the rootfs");
             rootfs
@@ -495,12 +499,12 @@ fn build_prepare(build_opts: CommonBuildOptions, local_config: &CliConfig) -> Re
             bail!("This rootfs manifest is missing a required package mapping for the `{}` binary", binary);
         };
 
-        let pb = progress_bar().with_prefix(format!("Fetching {} package set", pkg));
+        let bar = terminal.add_bar(format!("Fetching {} package set", pkg));
+        let mut writer = terminal.get_bar_writer(bar);
 
-        let mut pb_writer = ProgressBarWriter::init(&pb);
-        binary_to_pkgset.insert(binary, CachedPkgSet::get(&rootfs, &None, &BTreeSet::from([pkg]), &mut pb_writer)?);
+        binary_to_pkgset.insert(binary, CachedPkgSet::get(&rootfs, &None, &BTreeSet::from([pkg]), &mut writer)?);
 
-        pb.finish_and_clear();
+        terminal.remove_bar(bar);
     }
 
     let mut build_cache_enabled = HashSet::new();
@@ -544,7 +548,10 @@ pub fn run_cli() -> Result<()> {
 
     match opts.command {
         MainCommand::Install(install_opts) => {
-            let (ctx, config, cached_hashes) = build_prepare(install_opts.common_build_opts, &local_config)?;
+            let terminal = Arc::new(Terminal::new());
+            let render_handle = terminal.spawn_renderer(Duration::from_millis(100));
+
+            let (ctx, config, cached_hashes) = build_prepare(install_opts.common_build_opts, &local_config, &terminal)?;
 
             let mut selected_packages = Vec::new();
             for name in install_opts.packages {
@@ -563,8 +570,31 @@ pub fn run_cli() -> Result<()> {
 
             make_path(&install_opts.dest)?;
 
+            let tracer: Arc<dyn Tracer> = Arc::new(CliTracer::new(terminal.clone()));
+
+            let mut builder = BuildGraphBuilder::new();
+            for &selected_package in &selected_packages {
+                builder.add_root_package(selected_package);
+            }
+            let graph = builder.finish();
+
+            let manager = BuildManager::new(&ctx, graph, tracer);
+            let mode = match install_opts.keep_going {
+                true => FailureMode::KeepGoing,
+                false => FailureMode::FailFast,
+            };
+            let report = manager.execute(mode);
+            if !report.is_success() {
+                drop(render_handle);
+                bail!(
+                    "build failed: {} task(s) failed, {} skipped (see above for details)",
+                    report.failed.len(),
+                    report.skipped.len()
+                );
+            }
+
             for selected_package in selected_packages {
-                let entries = resolve_package_runtime_dependencies(&ctx, &mut stdout(), selected_package)?;
+                let paths = manager.package_install_paths(selected_package);
 
                 package_install(
                     &ctx,
@@ -573,7 +603,7 @@ pub fn run_cli() -> Result<()> {
                     &selected_package.version,
                     selected_package.revision,
                     selected_package.get_arch(),
-                    entries.iter().map(|entry| entry.path()).collect(),
+                    paths,
                     &PathBuf::from(&install_opts.dest),
                     false,
                     install_opts.force,
@@ -590,7 +620,10 @@ pub fn run_cli() -> Result<()> {
             ctx.build_cache.prune(ctx.build_cache_enabled)?;
         }
         MainCommand::Exec(exec_options) => {
-            let (ctx, config, _) = build_prepare(exec_options.common_build_opts, &local_config)?;
+            let terminal = Arc::new(Terminal::new());
+            let render_handle = terminal.spawn_renderer(Duration::from_millis(100));
+
+            let (ctx, config, _) = build_prepare(exec_options.common_build_opts, &local_config, &terminal)?;
 
             let mut packages = exec_options
                 .pkg
@@ -626,43 +659,70 @@ pub fn run_cli() -> Result<()> {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
-            let (pkgset, pkg) = if let Some(build_env_pkg) = exec_options.build_env {
-                let pkg = config
-                    .packages
-                    .iter()
-                    .find(|pkg| pkg.platform == PackagePlatform::Target && pkg.name == build_env_pkg);
-
-                let pkg = match pkg {
-                    None => bail!("No build_env package `{}` found", build_env_pkg),
-                    Some(pkg) => pkg,
-                };
-
-                let pkgset = CachedPkgSet::get(
-                    &ctx.rootfs,
-                    &None,
-                    &BTreeSet::from_iter(exec_options.native_pkg.iter().chain(&exec_options.native_pkg)),
-                    &mut stderr(),
-                )?;
-
-                for pkg in &pkg.dependencies.packages {
-                    packages.push(pkg);
-                }
-
-                for tool in &pkg.dependencies.tools {
-                    tools.push(tool);
-                }
-
-                (pkgset, Some(pkg))
-            } else {
-                let pkgset = CachedPkgSet::get(&ctx.rootfs, &None, &BTreeSet::from_iter(exec_options.native_pkg.iter()), &mut stderr())?;
-
-                (pkgset, None)
+            let build_env_pkg = match exec_options.build_env {
+                Some(build_env_pkg) => Some(
+                    match config
+                        .packages
+                        .iter()
+                        .find(|pkg| pkg.platform == PackagePlatform::Target && pkg.name == build_env_pkg)
+                    {
+                        Some(pkg) => pkg,
+                        None => bail!("No build_env package `{}` found", build_env_pkg),
+                    },
+                ),
+                None => None,
             };
 
-            let sources = match pkg {
-                Some(pkg) => &pkg.dependencies.sources,
-                None => &BTreeMap::new(),
-            };
+            let native_pkgs: BTreeSet<&str> = exec_options
+                .native_pkg
+                .iter()
+                .map(String::as_str)
+                .chain(build_env_pkg.iter().flat_map(|pkg| pkg.dependencies.native.iter().map(String::as_str)))
+                .collect();
+            let pkgset = CachedPkgSet::get(&ctx.rootfs, &None, &native_pkgs, &mut stderr())?;
+
+            if let Some(pkg) = build_env_pkg {
+                for dep in &pkg.dependencies.packages {
+                    packages.push(dep);
+                }
+                for dep in &pkg.dependencies.tools {
+                    tools.push(dep);
+                }
+            }
+
+            let source_deps: Vec<(&String, &Arc<Source>)> = build_env_pkg.map(|pkg| pkg.dependencies.sources.iter().collect()).unwrap_or_default();
+
+            let tracer: Arc<dyn Tracer> = Arc::new(CliTracer::new(terminal.clone()));
+
+            let mut builder = BuildGraphBuilder::new();
+            for &pkg in &packages {
+                builder.add_root_package(pkg);
+            }
+            for &tool in &tools {
+                builder.add_root_package(tool);
+            }
+            for &(_, source) in &source_deps {
+                builder.add_root_source(source);
+            }
+            let graph = builder.finish();
+
+            let manager = BuildManager::new(&ctx, graph, tracer);
+            let report = manager.execute(FailureMode::FailFast);
+            if !report.is_success() {
+                bail!(
+                    "build failed: {} task(s) failed, {} skipped (see above for details)",
+                    report.failed.len(),
+                    report.skipped.len()
+                );
+            }
+
+            let target_packages: Vec<(&Package, Vec<PathBuf>)> =
+                packages.iter().map(|&pkg| (pkg.as_ref(), manager.package_install_paths(pkg))).collect();
+            let host_tools: Vec<(&Package, Vec<PathBuf>)> = tools.iter().map(|&pkg| (pkg.as_ref(), manager.package_install_paths(pkg))).collect();
+            let sources: HashMap<String, Vec<PathBuf>> = source_deps
+                .iter()
+                .map(|&(name, source)| (name.clone(), manager.source_paths(source)))
+                .collect();
 
             let mountpoint_overlay_workdir = WorkDirectory::create(&ctx.workdir_parent)?;
             let mountpoint_overlay_overlay_path = mountpoint_overlay_workdir.path().join("mountpoint_overlay");
@@ -674,13 +734,13 @@ pub fn run_cli() -> Result<()> {
                 work_directory: mountpoint_overlay_work_path,
             };
 
-            let exec_env = ExecEnv::create(
+            let exec_env = ExecEnv::assemble(
                 &ctx,
-                &mut stderr(),
+                || Box::new(CapturingLogger::new(stderr())),
                 pkgset,
                 sources,
-                &packages.into_iter().cloned().collect(),
-                &tools.into_iter().cloned().collect(),
+                &target_packages,
+                &host_tools,
                 false,
                 Some(mountpoint_overlay),
             )?;
@@ -716,6 +776,8 @@ pub fn run_cli() -> Result<()> {
             }
 
             let script = Script::new(exec_options.language, exec_options.command);
+
+            drop(render_handle);
 
             let mut stderr_handle = stderr();
             let mut stdout_handle = stdout();

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     hash::{Hash, Hasher},
     io::Write,
     path::{Path, PathBuf},
@@ -14,13 +14,8 @@ use xxhash_rust::xxh3::Xxh3;
 
 use crate::{
     CoreContext, HOST_ARCH,
-    config::{
-        package::{Package, PackagePlatform},
-        source::Source,
-    },
-    package::{ProcessPackageError, resolve_package_runtime_dependencies},
-    source::{SourceFetchError, fetch_source},
-    store::StoreEntry,
+    config::package::{Package, PackagePlatform},
+    tracer::Logger,
     workdir::WorkDirectory,
     xbps::{XBPSPackageInstallError, package_install},
 };
@@ -33,24 +28,28 @@ pub enum CreateExecEnvError {
     #[error(transparent)]
     FileSystem(#[from] FileSystemError),
 
-    #[error(transparent)]
-    ProcessPackage(#[from] ProcessPackageError),
-
-    #[error("Failed to fetch source `{}`", name)]
-    FetchSource { name: String, source: SourceFetchError },
-
     #[error("Failed to install {} package `{}`", platform.to_string(), name)]
     PackageInstall {
         platform: PackagePlatform,
         name: String,
         source: XBPSPackageInstallError,
+        log: String,
     },
+}
+
+impl CreateExecEnvError {
+    pub fn captured_log(&self) -> Option<&str> {
+        match self {
+            Self::PackageInstall { log, .. } => Some(log),
+            Self::FileSystem(_) => None,
+        }
+    }
 }
 
 pub struct ExecEnv<'a> {
     pub ctx: &'a CoreContext,
     pub pkgset: Option<Arc<CachedPkgSet>>,
-    pub sources: HashMap<String, Vec<StoreEntry>>,
+    pub sources: HashMap<String, Vec<PathBuf>>,
     pub sysroot: WorkDirectory,
     pub tool_overlay: Option<WorkDirectory>,
     pub root_readonly: bool,
@@ -58,31 +57,20 @@ pub struct ExecEnv<'a> {
 }
 
 impl<'a> ExecEnv<'a> {
-    pub fn create(
+    pub fn assemble(
         ctx: &'a CoreContext,
-        logger: &mut dyn Write,
+        mut install_logger: impl FnMut() -> Box<dyn Logger>,
         pkgset: Option<Arc<CachedPkgSet>>,
-        sources: &BTreeMap<String, Arc<Source>>,
-        packages: &Vec<Arc<Package>>,
-        tools: &Vec<Arc<Package>>,
+        sources: HashMap<String, Vec<PathBuf>>,
+        target_packages: &[(&Package, Vec<PathBuf>)],
+        host_tools: &[(&Package, Vec<PathBuf>)],
         root_readonly: bool,
         root_rw_overlay: Option<OverlayUpperDirectory>,
     ) -> Result<ExecEnv<'a>, CreateExecEnvError> {
-        let mut cached_source_deps = HashMap::new();
-        for (name, source) in sources {
-            cached_source_deps.insert(
-                name.clone(),
-                fetch_source(ctx, logger, source).map_err(|err| CreateExecEnvError::FetchSource {
-                    name: name.clone(),
-                    source: err,
-                })?,
-            );
-        }
-
         let sysroot = WorkDirectory::create(&ctx.workdir_parent)?;
-        for pkg in packages {
+        for (pkg, paths) in target_packages {
             assert!(pkg.platform == PackagePlatform::Target);
-            let entries = resolve_package_runtime_dependencies(ctx, logger, pkg)?;
+            let mut logger = install_logger();
             package_install(
                 ctx,
                 None,
@@ -90,26 +78,27 @@ impl<'a> ExecEnv<'a> {
                 &pkg.version,
                 pkg.revision,
                 &pkg.global_env.target_arch,
-                entries.iter().map(|entry| entry.path()).collect(),
+                paths.clone(),
                 &sysroot.path(),
                 false,
                 false,
-                logger,
+                &mut logger,
             )
             .map_err(|err| CreateExecEnvError::PackageInstall {
                 platform: PackagePlatform::Target,
                 name: pkg.name.clone(),
                 source: err,
+                log: logger.captured(),
             })?;
         }
 
-        let tool_overlay = if tools.len() == 0 {
+        let tool_overlay = if host_tools.is_empty() {
             None
         } else {
             let tool_overlay_workdir = WorkDirectory::create(&ctx.workdir_parent)?;
-            for tool in tools {
+            for (tool, paths) in host_tools {
                 assert!(tool.platform == PackagePlatform::Host);
-                let entries = resolve_package_runtime_dependencies(ctx, logger, tool)?;
+                let mut logger = install_logger();
                 package_install(
                     ctx,
                     pkgset.as_deref(),
@@ -117,16 +106,17 @@ impl<'a> ExecEnv<'a> {
                     &tool.version,
                     tool.revision,
                     HOST_ARCH,
-                    entries.iter().map(|entry| entry.path()).collect(),
+                    paths.clone(),
                     &tool_overlay_workdir.path(),
                     true,
                     false,
-                    logger,
+                    &mut logger,
                 )
                 .map_err(|err| CreateExecEnvError::PackageInstall {
                     platform: PackagePlatform::Host,
                     name: tool.name.clone(),
                     source: err,
+                    log: logger.captured(),
                 })?;
             }
             Some(tool_overlay_workdir)
@@ -135,7 +125,7 @@ impl<'a> ExecEnv<'a> {
         Ok(Self {
             ctx,
             pkgset,
-            sources: cached_source_deps,
+            sources,
             sysroot,
             tool_overlay,
             root_readonly,
@@ -150,8 +140,8 @@ impl<'a> ExecEnv<'a> {
         names.sort();
         for name in names {
             name.hash(&mut hasher);
-            for entry in &self.sources[name] {
-                hash_directory(entry.path(), &mut hasher)?;
+            for path in &self.sources[name] {
+                hash_directory(path, &mut hasher)?;
             }
         }
 
@@ -181,17 +171,17 @@ impl<'a> ExecEnv<'a> {
         let source_mounts = self
             .sources
             .iter()
-            .map(|(name, store_entries)| Mount {
+            .map(|(name, paths)| Mount {
                 dest: PathBuf::from(EXECENV_SOURCES_DIRECTORY_PATH).join(name),
-                kind: match store_entries.len() {
+                kind: match paths.len() {
                     1 => MountKind::Bind {
-                        from: store_entries[0].path(),
+                        from: paths[0].clone(),
                         read_only: true,
                         is_file: false,
                     },
                     _ => MountKind::OverlayFS(Overlay {
                         upper_directory: None,
-                        lower_directories: store_entries.iter().map(|entry| entry.path()).rev().collect(),
+                        lower_directories: paths.iter().cloned().rev().collect(),
                     }),
                 },
             })

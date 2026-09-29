@@ -13,10 +13,13 @@ use crate::{
 pub mod buildcache;
 pub mod config;
 pub mod execenv;
+pub mod executor;
+pub mod graph;
 pub mod ledger;
 pub mod package;
 pub mod source;
 pub mod store;
+pub mod tracer;
 pub mod workdir;
 pub mod xbps;
 

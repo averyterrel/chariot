@@ -1,6 +1,6 @@
 use std::process::exit;
 
-use colored::{Color, Colorize};
+use console::{Color, style};
 use log::{Level, LevelFilter, Log, error};
 use nix::{
     sys::signal::{SigHandler, Signal, kill, signal},
@@ -11,6 +11,8 @@ use crate::cli::run_cli;
 
 mod cli;
 mod config;
+mod terminal;
+mod tracer;
 mod util;
 
 const LOGGER: ChariotLogger = ChariotLogger;
@@ -31,7 +33,11 @@ impl Log for ChariotLogger {
             Level::Error => Color::Red,
         };
 
-        eprintln!("{} | {}", record.level().as_str().color(level_color).bold(), record.args());
+        eprintln!(
+            "{} | {}",
+            style(record.level().as_str()).fg(level_color).bold().for_stderr(),
+            record.args()
+        );
     }
 
     fn flush(&self) {}
