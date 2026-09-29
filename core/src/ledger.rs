@@ -1,8 +1,8 @@
-use std::{collections::HashSet, path::Path, time::Duration};
+use std::{collections::HashSet, path::Path, sync::Mutex, time::Duration};
 
 use rusqlite::{Connection, params};
 
-pub struct Ledger(Connection);
+pub struct Ledger(Mutex<Connection>);
 
 impl Ledger {
     pub fn get(path: impl AsRef<Path>) -> Result<Self, rusqlite::Error> {
@@ -24,11 +24,11 @@ impl Ledger {
             ",
         )?;
 
-        Ok(Self(conn))
+        Ok(Self(Mutex::new(conn)))
     }
 
     pub fn lookup(&self, category: &str, hash: u128) -> Result<Option<u128>, rusqlite::Error> {
-        match self.0.query_one(
+        match self.0.lock().unwrap().query_one(
             "SELECT effective_hash FROM ledger WHERE category = ? AND hash = ?",
             params![category, hash.to_be_bytes()],
             |row| Ok(u128::from_be_bytes(row.get::<usize, [u8; 16]>(0)?)),
@@ -40,7 +40,7 @@ impl Ledger {
     }
 
     pub fn record(&self, category: &str, hash: u128, effective_hash: u128) -> Result<(), rusqlite::Error> {
-        self.0.execute(
+        self.0.lock().unwrap().execute(
             "REPLACE INTO ledger (category, hash, effective_hash) VALUES (?, ?, ?)",
             params![category, hash.to_be_bytes(), effective_hash.to_be_bytes()],
         )?;
@@ -48,7 +48,8 @@ impl Ledger {
     }
 
     pub fn list(&self) -> Result<Vec<(String, u128, u128)>, rusqlite::Error> {
-        let mut stmt = self.0.prepare("SELECT category, hash, effective_hash FROM ledger ORDER BY category, hash")?;
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT category, hash, effective_hash FROM ledger ORDER BY category, hash")?;
         let entries = stmt.query_map([], |row| {
             Ok((
                 row.get::<usize, String>(0)?,
@@ -61,7 +62,8 @@ impl Ledger {
     }
 
     pub fn prune(&self, exclude: HashSet<(&str, u128)>) -> Result<(), rusqlite::Error> {
-        let tx = self.0.unchecked_transaction()?;
+        let conn = self.0.lock().unwrap();
+        let tx = conn.unchecked_transaction()?;
 
         let mut stmt = tx.prepare("SELECT category, hash FROM ledger")?;
         let all_records = stmt.query_map([], |row| {
