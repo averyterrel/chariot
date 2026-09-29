@@ -103,6 +103,8 @@ impl CachedPkgSet {
                 make_path(&workdir_path)?;
                 force_rm_contents(&workdir_path, None)?;
 
+                force_rm_contents(&pkgset_path, None)?;
+
                 for pkg in pkgset {
                     if !rootfs.install_native_package(cached_pkgset.base.as_deref(), &pkgset_path, &workdir_path, pkg, logger)? {
                         return Err(GetPkgSetError::InstallPackageError {
