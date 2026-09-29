@@ -13,7 +13,7 @@ pub mod source;
 /// in a backwards incompatible way, this version should be bumped.
 const CONFIG_VERSION: u64 = 5;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Dependencies {
     pub native: BTreeSet<String>,
     pub sources: BTreeMap<String, Arc<Source>>,

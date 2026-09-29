@@ -19,6 +19,8 @@ use chariot_util::{
 use mlua::{Error, ErrorContext, Lua, LuaOptions, StdLib, Table, UserData, Value};
 use xxhash_rust::xxh3::Xxh3;
 
+use crate::SourceOverride;
+
 pub const EMBEDDED_LUA_FILE_META: &str = include_str!("./lua/meta.lua");
 pub const EMBEDDED_LUA_FILE_BUILTINS: &str = include_str!("./lua/builtins.lua");
 pub const EMBEDDED_LUA_FILE_HELPERS: &str = include_str!("./lua/helpers.lua");
@@ -142,7 +144,7 @@ pub fn eval_lua_config(
     global_environment: Arc<GlobalEnvironment>,
     options: HashMap<String, String>,
     local_source_storage: impl AsRef<Path>,
-    source_overrides: HashMap<(String, PackagePlatform), HashMap<String, PathBuf>>,
+    source_overrides: HashMap<(String, PackagePlatform), Vec<SourceOverride>>,
 ) -> Result<Config, LuaConfigError> {
     let lua = Lua::new_with(StdLib::MATH | StdLib::STRING | StdLib::TABLE | StdLib::PACKAGE, LuaOptions::new())?;
 
@@ -277,13 +279,30 @@ pub fn eval_lua_config(
             let mut dependencies = parse_dependencies_table(dependencies)?;
 
             if let Some(overrides) = source_overrides.get(&(name.clone(), platform)) {
-                for (name, path) in overrides {
-                    let local_source = make_local_source(&local_source_storage, &path).map_err(|err| Error::ExternalError(Arc::new(err)))?;
+                for source_override in overrides {
+                    let original = match dependencies.sources.remove_entry(&source_override.name) {
+                        None => {
+                            return Err(Error::runtime(format!(
+                                "source override `{}` does not refer to any source",
+                                source_override.name
+                            )));
+                        }
+                        Some((_, v)) => v,
+                    };
+
+                    let local_source =
+                        make_local_source(&local_source_storage, &source_override.path).map_err(|err| Error::ExternalError(Arc::new(err)))?;
 
                     let source = Arc::new(Source {
                         base: SourceBase::Local(local_source),
-                        patches: Vec::new(),
-                        prepare: None,
+                        patches: match source_override.patched {
+                            true => original.patches.clone(),
+                            false => Vec::new(),
+                        },
+                        prepare: match source_override.prepared {
+                            true => original.prepare.clone(),
+                            false => None,
+                        },
                     });
 
                     l.app_data_mut::<ChariotAppData>().unwrap().sources.push(source.clone());

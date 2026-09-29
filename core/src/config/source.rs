@@ -56,7 +56,7 @@ pub enum SourceBase {
     Local(LocalSource),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SourcePrepare {
     pub global_env: Arc<GlobalEnvironment>,
     pub dependencies: Dependencies,
