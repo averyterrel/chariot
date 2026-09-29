@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, num::NonZero, sync::Arc};
 
 use chariot_rootfs::{CachedPkgSet, RootFS};
 
@@ -31,7 +31,7 @@ pub const DEFAULT_TARGET_PREFIX: &str = "/usr";
 
 pub struct CoreContext {
     pub build_cache_enabled: HashSet<(PackagePlatform, String)>,
-    pub parallelism: usize,
+    pub parallelism: NonZero<usize>,
     pub rootfs: Arc<RootFS>,
     pub store: Arc<Store>,
     pub ledger: Arc<Ledger>,

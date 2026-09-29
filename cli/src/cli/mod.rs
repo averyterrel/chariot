@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     fs::{OpenOptions, write},
     io::{self, Read, Seek, SeekFrom, Write, stderr, stdout},
+    num::NonZero,
     path::{Path, PathBuf},
     sync::Arc,
     thread::available_parallelism,
@@ -182,6 +183,15 @@ struct CommonBuildOptions {
     #[arg(long, env = "CHARIOT_OPTIONS", help = "user defined options", value_parser = parse_kv, value_delimiter = ',')]
     options: Vec<(String, String)>,
 
+    #[arg(long, help = "chariot workers count", default_value_t = available_parallelism().unwrap().div_ceil(NonZero::try_from(2).unwrap()))]
+    worker_count: NonZero<usize>,
+
+    #[arg(long, short = 'j', help = "parallelism passed to scripts", default_value_t = NonZero::try_from(4).unwrap())]
+    parallelism: NonZero<usize>,
+
+    #[arg(long, help = "keep building unrelated packages after a failure instead of stopping immediately")]
+    keep_going: bool,
+
     #[arg(long, help = "allow creation of new profiles without user input")]
     allow_new_profiles: bool,
 }
@@ -246,9 +256,6 @@ struct InstallOptions {
 
     #[arg(long, help = "force installation, even if the package is already installed")]
     force: bool,
-
-    #[arg(long, help = "keep building unrelated packages after a failure instead of stopping immediately")]
-    keep_going: bool,
 
     #[arg(required = true, help = "packages to build and install")]
     packages: Vec<String>,
@@ -521,7 +528,7 @@ fn build_prepare(
 
     let ctx = CoreContext {
         build_cache_enabled,
-        parallelism: available_parallelism()?.get(),
+        parallelism: build_opts.parallelism,
         bsdtar_pkgset: binary_to_pkgset.remove("bsdtar").unwrap(),
         git_pkgset: binary_to_pkgset.remove("git").unwrap(),
         patch_pkgset: binary_to_pkgset.remove("patch").unwrap(),
@@ -551,6 +558,11 @@ pub fn run_cli() -> Result<()> {
             let terminal = Arc::new(Terminal::new());
             let render_handle = terminal.spawn_renderer(Duration::from_millis(100));
 
+            let worker_count = install_opts.common_build_opts.worker_count;
+            let failure_mode = match install_opts.common_build_opts.keep_going {
+                true => FailureMode::KeepGoing,
+                false => FailureMode::FailFast,
+            };
             let (ctx, config, cached_hashes) = build_prepare(install_opts.common_build_opts, &local_config, &terminal)?;
 
             let mut selected_packages = Vec::new();
@@ -579,11 +591,7 @@ pub fn run_cli() -> Result<()> {
             let graph = builder.finish();
 
             let manager = BuildManager::new(&ctx, graph, tracer);
-            let mode = match install_opts.keep_going {
-                true => FailureMode::KeepGoing,
-                false => FailureMode::FailFast,
-            };
-            let report = manager.execute(mode);
+            let report = manager.execute(failure_mode, worker_count);
             if !report.is_success() {
                 drop(render_handle);
                 bail!(
@@ -623,6 +631,11 @@ pub fn run_cli() -> Result<()> {
             let terminal = Arc::new(Terminal::new());
             let render_handle = terminal.spawn_renderer(Duration::from_millis(100));
 
+            let worker_count = exec_options.common_build_opts.worker_count;
+            let failure_mode = match exec_options.common_build_opts.keep_going {
+                true => FailureMode::KeepGoing,
+                false => FailureMode::FailFast,
+            };
             let (ctx, config, _) = build_prepare(exec_options.common_build_opts, &local_config, &terminal)?;
 
             let mut packages = exec_options
@@ -707,7 +720,7 @@ pub fn run_cli() -> Result<()> {
             let graph = builder.finish();
 
             let manager = BuildManager::new(&ctx, graph, tracer);
-            let report = manager.execute(FailureMode::FailFast);
+            let report = manager.execute(failure_mode, worker_count);
             if !report.is_success() {
                 bail!(
                     "build failed: {} task(s) failed, {} skipped (see above for details)",
