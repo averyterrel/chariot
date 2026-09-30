@@ -13,7 +13,6 @@ mod cli;
 mod config;
 mod terminal;
 mod tracer;
-mod util;
 
 const LOGGER: ChariotLogger = ChariotLogger;
 

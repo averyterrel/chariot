@@ -90,7 +90,7 @@ pub(crate) fn build(
             .iter()
             .any(|(platform, name)| platform == &package.platform && name == &package.name)
         {
-            let build_dir = BuildDirectory::get(&ctx.build_cache, package.platform, package.get_arch(), &package.name)?;
+            let build_dir = BuildDirectory::get_rw(&ctx.build_cache, package.platform, package.get_arch(), &package.name)?;
             let path = build_dir.path();
             _build_cachedir = Some(build_dir);
             path

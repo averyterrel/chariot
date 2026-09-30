@@ -65,13 +65,7 @@ pub struct BuildDirectory {
 }
 
 impl BuildDirectory {
-    fn generic_get(
-        build_cache: &Arc<BuildCache>,
-        platform: PackagePlatform,
-        arch: &str,
-        name: &str,
-        exclusive: bool,
-    ) -> Result<Self, FileSystemError> {
+    fn get(build_cache: &Arc<BuildCache>, platform: PackagePlatform, arch: &str, name: &str, exclusive: bool) -> Result<Self, FileSystemError> {
         let _build_cache_lock = DirLock::shared(&build_cache.path);
 
         let path = build_cache.dir_path(platform, &arch, &name);
@@ -94,12 +88,12 @@ impl BuildDirectory {
         })
     }
 
-    pub fn get(build_cache: &Arc<BuildCache>, platform: PackagePlatform, arch: &str, name: &str) -> Result<Self, FileSystemError> {
-        BuildDirectory::generic_get(build_cache, platform, arch, name, true)
+    pub fn get_rw(build_cache: &Arc<BuildCache>, platform: PackagePlatform, arch: &str, name: &str) -> Result<Self, FileSystemError> {
+        BuildDirectory::get(build_cache, platform, arch, name, true)
     }
 
-    pub fn get_read_only(build_cache: &Arc<BuildCache>, platform: PackagePlatform, arch: &str, name: &str) -> Result<Self, FileSystemError> {
-        BuildDirectory::generic_get(build_cache, platform, arch, name, false)
+    pub fn get_ro(build_cache: &Arc<BuildCache>, platform: PackagePlatform, arch: &str, name: &str) -> Result<Self, FileSystemError> {
+        BuildDirectory::get(build_cache, platform, arch, name, false)
     }
 
     pub fn path(&self) -> PathBuf {
