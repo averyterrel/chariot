@@ -34,6 +34,12 @@ pub enum MainCommand {
     #[command(about = "execute a command inside provided environment")]
     Exec(ExecOptions),
 
+    #[command(about = "check whether a package or tool is already present in the store")]
+    Lookup(LookupOptions),
+
+    #[command(about = "build package(s) without installing them")]
+    Build(BuildOptions),
+
     #[command(about = "cache support commands")]
     Cache(CacheOptions),
 
@@ -236,6 +242,33 @@ pub struct InstallOptions {
 
     #[arg(required = true, help = "package install destination")]
     pub dest: String,
+}
+
+#[derive(Args)]
+pub struct BuildOptions {
+    #[command(flatten)]
+    pub common_build_opts: CommonBuildOptions,
+
+    #[command(flatten)]
+    pub execution_opts: ExecutionOptions,
+
+    #[arg(long, help = "build a host package (tool) instead of a target package")]
+    pub tool: bool,
+
+    #[arg(required = true, help = "packages to build")]
+    pub packages: Vec<String>,
+}
+
+#[derive(Args)]
+pub struct LookupOptions {
+    #[command(flatten)]
+    pub config_opts: ConfigOptions,
+
+    #[arg(long, help = "look up a host package (tool) instead of a target package")]
+    pub tool: bool,
+
+    #[arg(help = "package or tool name to look up")]
+    pub name: String,
 }
 
 fn default_lsp_support_path() -> PathBuf {
