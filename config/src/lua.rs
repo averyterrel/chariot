@@ -183,6 +183,15 @@ pub fn eval_lua_config(
         let local_source_storage = local_source_storage.as_ref().to_path_buf();
         lua.create_function(
             move |l, (name, base, patches, prepare): (String, Table, Option<Vec<String>>, Option<Table>)| {
+                if l.app_data_ref::<ChariotAppData>()
+                    .unwrap()
+                    .sources
+                    .iter()
+                    .any(|source| source.name == name)
+                {
+                    return Err(Error::runtime(format!("a source with the name `{}` already exists", name)));
+                }
+
                 let source_override = source_overrides.iter().find(|source_override| source_override.name == name);
 
                 let base = match source_override {
@@ -291,7 +300,11 @@ pub fn eval_lua_config(
                 .iter()
                 .any(|pkg| pkg.name == name && pkg.platform == platform)
             {
-                return Err(Error::runtime(format!("a package with the name `{}` already exists", name)));
+                return Err(Error::runtime(format!(
+                    "a {} package with the name `{}` already exists",
+                    platform.to_string(),
+                    name
+                )));
             }
 
             let dependencies = parse_dependencies_table(dependencies)?;
