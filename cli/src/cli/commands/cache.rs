@@ -44,7 +44,7 @@ pub fn run(options: CacheOptions, local_config: &CliConfig) -> Result<()> {
                         input_state.arch.clone(),
                         input_state.options.clone(),
                         local_sources_workdir.path(),
-                        local_config.get_source_override_map(),
+                        local_config.get_source_overrides(),
                     )?;
 
                     state.cached_hashes.insert(idx, hash_config(&config));

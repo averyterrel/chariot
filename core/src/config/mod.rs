@@ -11,12 +11,12 @@ pub mod source;
 
 /// Describes the config version. If the config format changes
 /// in a backwards incompatible way, this version should be bumped.
-const CONFIG_VERSION: u64 = 5;
+const CONFIG_VERSION: u64 = 6;
 
 #[derive(Debug, Default, Clone)]
 pub struct Dependencies {
     pub native: BTreeSet<String>,
-    pub sources: BTreeMap<String, Arc<Source>>,
+    pub sources: Vec<Arc<Source>>,
     pub tools: Vec<Arc<Package>>,
     pub packages: Vec<Arc<Package>>,
 }

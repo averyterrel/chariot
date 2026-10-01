@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash, path::PathBuf};
+use std::{hash::Hash, path::PathBuf};
 
 use chariot_rootfs::CachedPkgSet;
 use chariot_runtime::{Mount, MountKind, StderrTarget};
@@ -8,7 +8,7 @@ use xxhash_rust::xxh3::Xxh3;
 use crate::{
     CoreContext,
     buildcache::BuildDirectory,
-    config::package::Package,
+    config::{package::Package, source::Source},
     execenv::{EXECENV_SOURCES_DIRECTORY_PATH, ExecEnv},
     executor::{ExecuteError, Outcome, TaskOutput},
     graph::TaskId,
@@ -23,7 +23,7 @@ pub(crate) fn build(
     tracer: &dyn Tracer,
     id: TaskId,
     package: &Package,
-    sources: HashMap<String, Vec<PathBuf>>,
+    sources: &[(&Source, Vec<PathBuf>)],
     target_packages: &[(&Package, Vec<PathBuf>)],
     host_tools: &[(&Package, Vec<PathBuf>)],
 ) -> Result<Outcome, ExecuteError> {
@@ -110,7 +110,7 @@ pub(crate) fn build(
             },
         };
 
-        let source_dir = if package.dependencies.sources.iter().any(|(k, _)| k == &package.name) {
+        let source_dir = if package.dependencies.sources.iter().any(|source| source.name == package.name) {
             Some(
                 PathBuf::from(EXECENV_SOURCES_DIRECTORY_PATH)
                     .join(&package.name)

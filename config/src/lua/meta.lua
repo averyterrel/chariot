@@ -63,11 +63,12 @@ chariot = {}
 function chariot.read_file(path) end
 
 --- Registers a source and returns a handle to it.
+---@param name string
 ---@param base SourceBase
 ---@param patches? string[]
 ---@param prepare? SourcePrepare
 ---@return SourceRef
-function chariot.def_source(base, patches, prepare) end
+function chariot.def_source(name, base, patches, prepare) end
 
 --- Registers a package and returns a handle to it.
 --- Errors if a package with the same name already exists for that platform.

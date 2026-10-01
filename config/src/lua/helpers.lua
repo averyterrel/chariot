@@ -83,9 +83,14 @@ function Local(path)
 end
 
 --- Define a source and return a reference to it.
---- @param tbl { base: ArchiveSource|GitSource, patches?: string[], prepare: string, dependencies: Dependency[] }
+--- @param tbl { name: string, base: ArchiveSource|GitSource, patches?: string[], prepare: string, dependencies: Dependency[] }
 --- @return SourceRef
 function Source(tbl)
+    local name = tbl["name"]
+    if type(name) ~= "string" then
+        error("name must be a string")
+    end
+
     local base = tbl["base"]
     if base == nil and #tbl >= 1 then
         base = tbl[1]
@@ -106,7 +111,7 @@ function Source(tbl)
         warn("prepare skipped, `dependencies` is defined but `script` is not")
     end
 
-    return chariot.def_source(base, patches, prepare)
+    return chariot.def_source(name, base, patches, prepare)
 end
 
 local function pkg_helper(platform, tbl)

@@ -146,7 +146,7 @@ pub struct BuildManager<'a> {
 impl<'a> BuildManager<'a> {
     pub fn new(ctx: &'a CoreContext, graph: BuildGraph, tracer: Arc<dyn Tracer>) -> Self {
         for id in graph.ids() {
-            tracer.register_task(id, &graph.kind(id), graph.source_references(id));
+            tracer.register_task(id, &graph.kind(id));
         }
 
         Self {
@@ -326,15 +326,15 @@ impl<'a> BuildManager<'a> {
         &self,
         dependencies: &'deps Dependencies,
     ) -> (
-        HashMap<String, Vec<PathBuf>>,
+        Vec<(&'deps Source, Vec<PathBuf>)>,
         Vec<(&'deps Package, Vec<PathBuf>)>,
         Vec<(&'deps Package, Vec<PathBuf>)>,
     ) {
         let sources = dependencies
             .sources
             .iter()
-            .map(|(name, src)| (name.clone(), self.source_paths(src)))
-            .collect::<HashMap<_, _>>();
+            .map(|source| (source.as_ref(), self.source_paths(source)))
+            .collect::<Vec<_>>();
         let target_packages = dependencies
             .packages
             .iter()
@@ -352,15 +352,15 @@ impl<'a> BuildManager<'a> {
     fn execute_package(&self, id: TaskId, package: &Arc<Package>) -> Result<Outcome, ExecuteError> {
         let (sources, target_packages, host_tools) = self.dependency_paths(&package.dependencies);
 
-        package::build(self.ctx, self.tracer.as_ref(), id, package, sources, &target_packages, &host_tools)
+        package::build(self.ctx, self.tracer.as_ref(), id, package, &sources, &target_packages, &host_tools)
     }
 
     fn execute_source(&self, id: TaskId, source: &Arc<Source>) -> Result<Outcome, ExecuteError> {
         let (sources, target_packages, host_tools) = match &source.prepare {
             Some(prepare) => self.dependency_paths(&prepare.dependencies),
-            None => (HashMap::new(), Vec::new(), Vec::new()),
+            None => (Vec::new(), Vec::new(), Vec::new()),
         };
 
-        source::fetch(self.ctx, self.tracer.as_ref(), id, source, sources, &target_packages, &host_tools)
+        source::fetch(self.ctx, self.tracer.as_ref(), id, source, &sources, &target_packages, &host_tools)
     }
 }

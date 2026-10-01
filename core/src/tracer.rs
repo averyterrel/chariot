@@ -69,7 +69,7 @@ pub enum TaskStatus {
 
 pub trait Tracer: Send + Sync {
     #[allow(unused_variables)]
-    fn register_task(&self, id: TaskId, kind: &TaskKind, referenced_by: &[(TaskId, String)]) {}
+    fn register_task(&self, id: TaskId, kind: &TaskKind) {}
 
     #[allow(unused_variables)]
     fn task_status(&self, id: TaskId, status: TaskStatus) {}

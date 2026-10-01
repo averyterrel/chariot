@@ -24,7 +24,6 @@ pub struct BuildGraph {
     nodes: Vec<TaskNode>,
     package_ids: HashMap<usize, TaskId>,
     source_ids: HashMap<usize, TaskId>,
-    source_references: HashMap<TaskId, Vec<(TaskId, String)>>,
 }
 
 impl BuildGraph {
@@ -50,10 +49,6 @@ impl BuildGraph {
 
     pub fn task_for_source(&self, source: &Arc<Source>) -> TaskId {
         self.source_ids[&(Arc::as_ptr(source) as usize)]
-    }
-
-    pub fn source_references(&self, id: TaskId) -> &[(TaskId, String)] {
-        self.source_references.get(&id).map_or(&[], Vec::as_slice)
     }
 
     pub fn runtime_dependency_closure(&self, pkg_task: TaskId) -> Vec<TaskId> {
@@ -91,7 +86,6 @@ impl BuildGraphBuilder {
                 nodes: Vec::new(),
                 package_ids: HashMap::new(),
                 source_ids: HashMap::new(),
-                source_references: HashMap::new(),
             },
         }
     }
@@ -117,14 +111,6 @@ impl BuildGraphBuilder {
         id
     }
 
-    fn reference_source(&mut self, source_id: TaskId, referrer: TaskId, name: &str) {
-        self.graph
-            .source_references
-            .entry(source_id)
-            .or_default()
-            .push((referrer, name.to_string()));
-    }
-
     fn visit_package(&mut self, pkg: &Arc<Package>) -> TaskId {
         let ptr = Arc::as_ptr(pkg) as usize;
         if let Some(&id) = self.graph.package_ids.get(&ptr) {
@@ -137,10 +123,9 @@ impl BuildGraphBuilder {
         });
         self.graph.package_ids.insert(ptr, id);
 
-        for (name, source) in &pkg.dependencies.sources {
-            let source_id = self.visit_source(source);
+        for dependency in &pkg.dependencies.sources {
+            let source_id = self.visit_source(dependency);
             self.graph.nodes[id.0].dependencies.push(source_id);
-            self.reference_source(source_id, id, name);
         }
 
         for dependency in iter::chain(&pkg.dependencies.packages, &pkg.dependencies.tools) {
@@ -170,10 +155,9 @@ impl BuildGraphBuilder {
         self.graph.source_ids.insert(ptr, id);
 
         if let Some(prepare) = &source.prepare {
-            for (name, dep_source) in &prepare.dependencies.sources {
-                let source_id = self.visit_source(dep_source);
+            for dependency in &prepare.dependencies.sources {
+                let source_id = self.visit_source(dependency);
                 self.graph.nodes[id.0].dependencies.push(source_id);
-                self.reference_source(source_id, id, name);
             }
 
             for dependency in iter::chain(&prepare.dependencies.packages, &prepare.dependencies.tools) {

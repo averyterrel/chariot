@@ -12,7 +12,7 @@ use chariot_config::{
 };
 use chariot_core::{
     DEFAULT_TARGET_PREFIX, collect_all_hashes,
-    config::{Config, GlobalEnvironment, package::PackagePlatform},
+    config::{Config, GlobalEnvironment},
     workdir::{WorkDirectory, WorkDirectoryParent},
 };
 use chariot_util::fs::join_soft;
@@ -73,7 +73,7 @@ pub fn resolve_profile(cache: &Cache, config_opts: ConfigOptions, local_config: 
             config_opts.arch.clone(),
             options.clone(),
             local_sources_workdir.path(),
-            local_config.get_source_override_map(),
+            local_config.get_source_overrides(),
         )?;
 
         state.cached_hashes.insert(input_state_index, hash_config(&config));
@@ -111,7 +111,7 @@ pub fn load_profile_config(
     arch: String,
     options: HashMap<String, String>,
     local_sources_workdir: impl AsRef<Path>,
-    source_overrides: HashMap<(String, PackagePlatform), Vec<SourceOverride>>,
+    source_overrides: Vec<SourceOverride>,
 ) -> Result<Config> {
     let target_prefix = base_config.target_prefix.clone().unwrap_or_else(|| String::from(DEFAULT_TARGET_PREFIX));
 

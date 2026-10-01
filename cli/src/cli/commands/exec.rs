@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::BTreeSet,
     io::{stderr, stdout},
     path::PathBuf,
     sync::Arc,
@@ -78,13 +78,12 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
         }
     }
 
-    let source_deps: Vec<(&String, &Arc<Source>)> = build_env_pkg.map(|pkg| pkg.dependencies.sources.iter().collect()).unwrap_or_default();
+    let source_deps: Vec<&Arc<Source>> = build_env_pkg.map(|pkg| pkg.dependencies.sources.iter().collect()).unwrap_or_default();
 
     let tracer: Arc<dyn Tracer> = Arc::new(CliTracer::new(terminal.clone()));
 
     let root_packages: Vec<&Arc<Package>> = packages.iter().chain(tools.iter()).copied().collect();
-    let root_sources: Vec<&Arc<Source>> = source_deps.iter().map(|&(_, source)| source).collect();
-    let manager = match run_build(&ctx, tracer, &root_packages, &root_sources, mode, worker_count) {
+    let manager = match run_build(&ctx, tracer, &root_packages, &source_deps, mode, worker_count) {
         Ok(manager) => manager,
         Err(err) => {
             drop(render_handle);
@@ -94,10 +93,7 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
 
     let target_packages: Vec<(&Package, Vec<PathBuf>)> = packages.iter().map(|&pkg| (pkg.as_ref(), manager.package_install_paths(pkg))).collect();
     let host_tools: Vec<(&Package, Vec<PathBuf>)> = tools.iter().map(|&pkg| (pkg.as_ref(), manager.package_install_paths(pkg))).collect();
-    let sources: HashMap<String, Vec<PathBuf>> = source_deps
-        .iter()
-        .map(|&(name, source)| (name.clone(), manager.source_paths(source)))
-        .collect();
+    let sources: Vec<(&Source, Vec<PathBuf>)> = source_deps.iter().map(|source| (source.as_ref(), manager.source_paths(source))).collect();
 
     let mountpoint_overlay_workdir = WorkDirectory::create(&ctx.workdir_parent)?;
     let mountpoint_overlay_overlay_path = mountpoint_overlay_workdir.path().join("mountpoint_overlay");
@@ -113,7 +109,7 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
         &ctx,
         || Box::new(CapturingLogger::new(stderr())),
         pkgset,
-        sources,
+        &sources,
         &target_packages,
         &host_tools,
         false,

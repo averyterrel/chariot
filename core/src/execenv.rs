@@ -14,7 +14,10 @@ use xxhash_rust::xxh3::Xxh3;
 
 use crate::{
     CoreContext, HOST_ARCH,
-    config::package::{Package, PackagePlatform},
+    config::{
+        package::{Package, PackagePlatform},
+        source::Source,
+    },
     tracer::Logger,
     workdir::WorkDirectory,
     xbps::{XBPSPackageInstallError, package_install},
@@ -61,7 +64,7 @@ impl<'a> ExecEnv<'a> {
         ctx: &'a CoreContext,
         mut install_logger: impl FnMut() -> Box<dyn Logger>,
         pkgset: Option<Arc<CachedPkgSet>>,
-        sources: HashMap<String, Vec<PathBuf>>,
+        sources: &[(&Source, Vec<PathBuf>)],
         target_packages: &[(&Package, Vec<PathBuf>)],
         host_tools: &[(&Package, Vec<PathBuf>)],
         root_readonly: bool,
@@ -125,7 +128,7 @@ impl<'a> ExecEnv<'a> {
         Ok(Self {
             ctx,
             pkgset,
-            sources,
+            sources: sources.iter().map(|(source, paths)| (source.name.clone(), paths.clone())).collect(),
             sysroot,
             tool_overlay,
             root_readonly,

@@ -33,7 +33,7 @@ pub(crate) fn fetch(
     tracer: &dyn Tracer,
     id: TaskId,
     source: &Source,
-    sources: HashMap<String, Vec<PathBuf>>,
+    sources: &[(&Source, Vec<PathBuf>)],
     target_packages: &[(&Package, Vec<PathBuf>)],
     host_tools: &[(&Package, Vec<PathBuf>)],
 ) -> Result<Outcome, ExecuteError> {

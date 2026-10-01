@@ -4,10 +4,7 @@ use std::{
 };
 
 use chariot_core::{
-    config::{
-        package::PackagePlatform,
-        source::{Archive, GitSource, LocalSource, SourceBase},
-    },
+    config::package::PackagePlatform,
     graph::{TaskId, TaskKind},
     tracer::{CapturingLogger, Logger, PackageStep, PrepareStep, SourceStep, TaskStatus, Tracer},
 };
@@ -58,11 +55,7 @@ impl CliTracer {
                 },
                 package.name
             ),
-            TaskKind::Source { source } => match &source.base {
-                SourceBase::Archive(Archive { url, .. }) => format!("source archive {}", url),
-                SourceBase::Git(GitSource { url, .. }) => format!("source repository {}", url),
-                SourceBase::Local(LocalSource { path, .. }) => format!("source directory {}", path.display()),
-            },
+            TaskKind::Source { source } => format!("source {}", source.name),
         }
     }
 
@@ -78,18 +71,15 @@ impl CliTracer {
 }
 
 impl Tracer for CliTracer {
-    fn register_task(&self, id: TaskId, kind: &TaskKind, referenced_by: &[(TaskId, String)]) {
+    fn register_task(&self, id: TaskId, kind: &TaskKind) {
         let mut tasks = self.tasks.lock().unwrap();
-
-        let label = match (kind, referenced_by.first()) {
-            (TaskKind::Source { .. }, Some((referrer, name))) => match tasks.get(referrer) {
-                Some(referrer_state) => format!("{} > source {}", referrer_state.label, name),
-                None => Self::label_for(kind),
+        tasks.insert(
+            id,
+            TaskState {
+                label: Self::label_for(kind),
+                bar: None,
             },
-            _ => Self::label_for(kind),
-        };
-
-        tasks.insert(id, TaskState { label, bar: None });
+        );
         drop(tasks);
         self.advance_progress(1, 0);
     }

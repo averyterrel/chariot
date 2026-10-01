@@ -66,6 +66,7 @@ pub struct SourcePrepare {
 
 #[derive(Debug)]
 pub struct Source {
+    pub name: String,
     pub base: SourceBase,
     pub patches: Vec<String>,
     pub prepare: Option<SourcePrepare>,
@@ -114,6 +115,8 @@ impl Source {
 
 impl Hash for Source {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_usize(self.name.len());
+        state.write(self.name.as_bytes());
         state.write_u128(self.get_prepare_hash(self.get_prepare_base_hash(self.get_patch_hash(self.get_base_hash()))));
     }
 }

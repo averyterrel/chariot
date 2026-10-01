@@ -83,14 +83,9 @@ impl UserData for PackageRef {}
 fn parse_dependencies_table(table: Table) -> Result<Dependencies, mlua::Error> {
     let mut dependencies = Dependencies::default();
     for pair in table.pairs() {
-        let (k, dep): (Value, Value) = pair?;
+        let (_, dep): (Value, Value) = pair?;
         match dep {
-            Value::UserData(ud) if let Ok(source_ref) = ud.borrow::<SourceRef>() => {
-                match k.as_string() {
-                    Some(name) => dependencies.sources.insert(name.to_string_lossy(), source_ref.0.clone()),
-                    None => return Err(Error::runtime("source dependencies must be named (bound to a key)")),
-                };
-            }
+            Value::UserData(ud) if let Ok(source_ref) = ud.borrow::<SourceRef>() => dependencies.sources.push(source_ref.0.clone()),
             Value::UserData(ud) if let Ok(package_ref) = ud.borrow::<PackageRef>() => {
                 match package_ref.0.platform {
                     PackagePlatform::Host => dependencies.tools.push(package_ref.0.clone()),
@@ -144,7 +139,7 @@ pub fn eval_lua_config(
     global_environment: Arc<GlobalEnvironment>,
     options: HashMap<String, String>,
     local_source_storage: impl AsRef<Path>,
-    source_overrides: HashMap<(String, PackagePlatform), Vec<SourceOverride>>,
+    source_overrides: Vec<SourceOverride>,
 ) -> Result<Config, LuaConfigError> {
     let lua = Lua::new_with(StdLib::MATH | StdLib::STRING | StdLib::TABLE | StdLib::PACKAGE, LuaOptions::new())?;
 
@@ -182,83 +177,95 @@ pub fn eval_lua_config(
         })?
     })?;
     chariot_table.set("def_source", {
+        let source_overrides = source_overrides.clone();
         let project_root = project_root.as_ref().to_path_buf();
         let global_environment = global_environment.clone();
         let local_source_storage = local_source_storage.as_ref().to_path_buf();
-        lua.create_function(move |l, (base, patches, prepare): (Table, Option<Vec<String>>, Option<Table>)| {
-            let base = match base.get::<String>("type").context("`type` must be a string")?.as_str() {
-                "archive" => {
-                    let url = base.get::<String>("url").context("`url` must be a string")?;
-                    let checksum = base.get::<String>("checksum").context("`checksum` must be a string")?;
-                    let kind = base.get::<String>("kind").context("`kind` must be a string")?;
-                    let compression = base.get::<String>("compression").context("`compression` must be a string")?;
+        lua.create_function(
+            move |l, (name, base, patches, prepare): (String, Table, Option<Vec<String>>, Option<Table>)| {
+                let source_override = source_overrides.iter().find(|source_override| source_override.name == name);
 
-                    let kind = match kind.as_str() {
-                        "tar" => ArchiveKind::Tar,
-                        _ => return Err(Error::runtime(format!("invalid archive kind `{}`", kind))),
-                    };
+                let base = match source_override {
+                    Some(source_override) => SourceBase::Local(
+                        make_local_source(&local_source_storage, &source_override.path).map_err(|err| Error::ExternalError(Arc::new(err)))?,
+                    ),
+                    None => match base.get::<String>("type").context("`type` must be a string")?.as_str() {
+                        "archive" => {
+                            let url = base.get::<String>("url").context("`url` must be a string")?;
+                            let checksum = base.get::<String>("checksum").context("`checksum` must be a string")?;
+                            let kind = base.get::<String>("kind").context("`kind` must be a string")?;
+                            let compression = base.get::<String>("compression").context("`compression` must be a string")?;
 
-                    let compression = match compression.as_str() {
-                        "gz" => ArchiveCompression::Gzip,
-                        "xz" => ArchiveCompression::Xz,
-                        "bzip2" => ArchiveCompression::Bzip2,
-                        _ => return Err(Error::runtime(format!("invalid archive compression `{}`", compression))),
-                    };
+                            let kind = match kind.as_str() {
+                                "tar" => ArchiveKind::Tar,
+                                _ => return Err(Error::runtime(format!("invalid archive kind `{}`", kind))),
+                            };
 
-                    let archive = Archive {
-                        url,
-                        checksum,
-                        kind,
-                        compression,
-                    };
+                            let compression = match compression.as_str() {
+                                "gz" => ArchiveCompression::Gzip,
+                                "xz" => ArchiveCompression::Xz,
+                                "bzip2" => ArchiveCompression::Bzip2,
+                                _ => return Err(Error::runtime(format!("invalid archive compression `{}`", compression))),
+                            };
 
-                    SourceBase::Archive(archive)
-                }
-                "git" => {
-                    let url = base.get::<String>("url").context("`url` must be a string")?;
-                    let revision = base.get::<String>("revision").context("`revision` must be a string")?;
+                            let archive = Archive {
+                                url,
+                                checksum,
+                                kind,
+                                compression,
+                            };
 
-                    SourceBase::Git(GitSource { url, revision })
-                }
-                "local" => {
-                    let path = PathBuf::from(base.get::<String>("path").context("`path` must be a string")?);
-                    let path = project_root.join(path);
-                    let local_source = make_local_source(&local_source_storage, &path).map_err(|err| Error::ExternalError(Arc::new(err)))?;
+                            SourceBase::Archive(archive)
+                        }
+                        "git" => {
+                            let url = base.get::<String>("url").context("`url` must be a string")?;
+                            let revision = base.get::<String>("revision").context("`revision` must be a string")?;
 
-                    SourceBase::Local(local_source)
-                }
-                t => return Err(Error::runtime(format!("invalid base type `{}`", t))),
-            };
+                            SourceBase::Git(GitSource { url, revision })
+                        }
+                        "local" => {
+                            let path = PathBuf::from(base.get::<String>("path").context("`path` must be a string")?);
+                            let path = project_root.join(path);
+                            let local_source = make_local_source(&local_source_storage, &path).map_err(|err| Error::ExternalError(Arc::new(err)))?;
 
-            let prepare = match prepare {
-                Some(prepare) => {
-                    let script = prepare.get::<String>("script").context("`script` must be a string")?;
-                    let dependencies = parse_dependencies_table(prepare.get::<Table>("dependencies").context("`dependencies` must be a table")?)?;
-                    Some(SourcePrepare {
-                        global_env: global_environment.clone(),
-                        environment_variables: BTreeMap::new(),
-                        dependencies,
-                        script: Script::new(ScriptLanguage::Bash, script),
-                    })
-                }
-                None => None,
-            };
+                            SourceBase::Local(local_source)
+                        }
+                        t => return Err(Error::runtime(format!("invalid base type `{}`", t))),
+                    },
+                };
 
-            let source = Arc::new(Source {
-                base: base,
-                patches: patches.unwrap_or(Vec::new()),
-                prepare,
-            });
+                let prepare = match (prepare, source_override.map(|o| o.prepared)) {
+                    (Some(prepare), None) | (Some(prepare), Some(true)) => {
+                        let script = prepare.get::<String>("script").context("`script` must be a string")?;
+                        let dependencies = parse_dependencies_table(prepare.get::<Table>("dependencies").context("`dependencies` must be a table")?)?;
+                        Some(SourcePrepare {
+                            global_env: global_environment.clone(),
+                            environment_variables: BTreeMap::new(),
+                            dependencies,
+                            script: Script::new(ScriptLanguage::Bash, script),
+                        })
+                    }
+                    _ => None,
+                };
 
-            l.app_data_mut::<ChariotAppData>().unwrap().sources.push(source.clone());
+                let source = Arc::new(Source {
+                    name,
+                    base: base,
+                    patches: match (patches, source_override.map(|o| o.patched)) {
+                        (Some(patches), None) | (Some(patches), Some(true)) => patches,
+                        _ => Vec::new(),
+                    },
+                    prepare,
+                });
 
-            Ok(SourceRef(source))
-        })?
+                l.app_data_mut::<ChariotAppData>().unwrap().sources.push(source.clone());
+
+                Ok(SourceRef(source))
+            },
+        )?
     })?;
     chariot_table.set("def_package", {
         let global_environment = global_environment.clone();
-        let source_overrides = source_overrides.clone();
-        let local_source_storage = local_source_storage.as_ref().to_path_buf();
         lua.create_function(move |l, pkg: Table| {
             let platform = pkg.get::<String>("platform").context("`platform` must be a string")?;
             let name = pkg.get::<String>("name").context("`name` must be a string")?;
@@ -287,40 +294,7 @@ pub fn eval_lua_config(
                 return Err(Error::runtime(format!("a package with the name `{}` already exists", name)));
             }
 
-            let mut dependencies = parse_dependencies_table(dependencies)?;
-
-            if let Some(overrides) = source_overrides.get(&(name.clone(), platform)) {
-                for source_override in overrides {
-                    let original = match dependencies.sources.remove_entry(&source_override.name) {
-                        None => {
-                            return Err(Error::runtime(format!(
-                                "source override `{}` does not refer to any source",
-                                source_override.name
-                            )));
-                        }
-                        Some((_, v)) => v,
-                    };
-
-                    let local_source =
-                        make_local_source(&local_source_storage, &source_override.path).map_err(|err| Error::ExternalError(Arc::new(err)))?;
-
-                    let source = Arc::new(Source {
-                        base: SourceBase::Local(local_source),
-                        patches: match source_override.patched {
-                            true => original.patches.clone(),
-                            false => Vec::new(),
-                        },
-                        prepare: match source_override.prepared {
-                            true => original.prepare.clone(),
-                            false => None,
-                        },
-                    });
-
-                    l.app_data_mut::<ChariotAppData>().unwrap().sources.push(source.clone());
-
-                    dependencies.sources.insert(name.clone(), source);
-                }
-            }
+            let dependencies = parse_dependencies_table(dependencies)?;
 
             let runtime_dependencies = {
                 let mut rdeps = Vec::new();
