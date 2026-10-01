@@ -148,6 +148,16 @@ pub fn eval_lua_config(
 ) -> Result<Config, LuaConfigError> {
     let lua = Lua::new_with(StdLib::MATH | StdLib::STRING | StdLib::TABLE | StdLib::PACKAGE, LuaOptions::new())?;
 
+    let package: Table = lua.globals().get("package")?;
+    package.set(
+        "path",
+        format!(
+            "{}/?.lua;{}/?/init.lua",
+            project_root.as_ref().to_string_lossy(),
+            project_root.as_ref().to_string_lossy()
+        ),
+    )?;
+
     lua.set_app_data(ChariotAppData {
         sources: Vec::new(),
         packages: Vec::new(),
@@ -172,6 +182,7 @@ pub fn eval_lua_config(
         })?
     })?;
     chariot_table.set("def_source", {
+        let project_root = project_root.as_ref().to_path_buf();
         let global_environment = global_environment.clone();
         let local_source_storage = local_source_storage.as_ref().to_path_buf();
         lua.create_function(move |l, (base, patches, prepare): (Table, Option<Vec<String>>, Option<Table>)| {
@@ -211,7 +222,7 @@ pub fn eval_lua_config(
                 }
                 "local" => {
                     let path = PathBuf::from(base.get::<String>("path").context("`path` must be a string")?);
-
+                    let path = project_root.join(path);
                     let local_source = make_local_source(&local_source_storage, &path).map_err(|err| Error::ExternalError(Arc::new(err)))?;
 
                     SourceBase::Local(local_source)
