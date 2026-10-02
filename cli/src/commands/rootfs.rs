@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use chariot_rootfs::{CachedPkgSet, ManifestFetchSpec, PkgSetState, RootFS};
 use log::info;
 
-use crate::cli::args::{PkgsetCommand, RootFSCommand, RootFSOptions};
+use crate::args::{PkgsetCommand, RootFSCommand, RootFSOptions};
 
 pub fn run(options: RootFSOptions) -> Result<()> {
     let RootFSOptions {

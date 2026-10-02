@@ -5,12 +5,10 @@ use chariot_core::{config::package::PackagePlatform, tracer::Tracer, xbps::packa
 use chariot_util::fs::make_path;
 
 use crate::{
-    cli::{
-        args::InstallOptions,
-        build::{find_package, prepare_build, run_build},
-        cache::{Cache, prune_store_and_ledger},
-    },
-    config::CliConfig,
+    args::InstallOptions,
+    build::{find_package, prepare_build, run_build},
+    cache::{Cache, prune_store_and_ledger},
+    cli_config::CliConfig,
     terminal::Terminal,
     tracer::CliTracer,
 };

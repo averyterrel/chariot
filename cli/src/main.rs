@@ -7,9 +7,13 @@ use nix::{
     unistd::Pid,
 };
 
-use crate::cli::run_cli;
+use crate::commands::run_cli;
 
-mod cli;
+mod args;
+mod build;
+mod cache;
+mod cli_config;
+mod commands;
 mod config;
 mod terminal;
 mod tracer;

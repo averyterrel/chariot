@@ -21,12 +21,10 @@ use chariot_rootfs::{CachedPkgSet, DEFAULT_MANIFESTS_URL, ManifestFetchSpec, Roo
 use log::{info, warn};
 
 use crate::{
-    cli::{
-        args::CommonBuildOptions,
-        cache::Cache,
-        config::{ResolvedProfile, resolve_profile},
-    },
-    config::CliConfig,
+    args::CommonBuildOptions,
+    cache::Cache,
+    cli_config::CliConfig,
+    config::{ResolvedProfile, resolve_profile},
     terminal::Terminal,
 };
 

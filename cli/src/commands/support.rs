@@ -8,7 +8,7 @@ use clap_complete::generate;
 use log::info;
 use serde_json::json;
 
-use crate::cli::args::{ChariotOptions, SupportCommand};
+use crate::args::{ChariotOptions, SupportCommand};
 
 pub fn run(command: SupportCommand) -> Result<()> {
     match command {

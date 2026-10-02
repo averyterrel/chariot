@@ -4,13 +4,11 @@ use anyhow::Result;
 use chariot_core::{config::package::PackagePlatform, store::StoreEntry};
 
 use crate::{
-    cli::{
-        args::LookupOptions,
-        build::find_package,
-        cache::Cache,
-        config::{ResolvedProfile, resolve_profile},
-    },
-    config::CliConfig,
+    args::LookupOptions,
+    build::find_package,
+    cache::Cache,
+    cli_config::CliConfig,
+    config::{ResolvedProfile, resolve_profile},
 };
 
 pub fn run(lookup_opts: LookupOptions, local_config: &CliConfig) -> Result<()> {

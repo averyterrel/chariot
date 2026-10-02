@@ -1,15 +1,19 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 
-use crate::config::parse_cli_config;
+use crate::{
+    args::{ChariotOptions, MainCommand},
+    cli_config::parse_cli_config,
+    commands,
+};
 
-mod args;
-mod build;
-mod cache;
-mod commands;
-mod config;
-
-use args::{ChariotOptions, MainCommand};
+pub mod build;
+pub mod cache;
+pub mod exec;
+pub mod install;
+pub mod lookup;
+pub mod rootfs;
+pub mod support;
 
 pub fn run_cli() -> Result<()> {
     let opts = ChariotOptions::parse();

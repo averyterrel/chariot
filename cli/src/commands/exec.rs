@@ -23,12 +23,10 @@ use chariot_runtime::{Mount, MountKind, OverlayUpperDirectory};
 use chariot_util::fs::make_path;
 
 use crate::{
-    cli::{
-        args::ExecOptions,
-        build::{find_package, prepare_build, run_build},
-        cache::Cache,
-    },
-    config::CliConfig,
+    args::ExecOptions,
+    build::{find_package, prepare_build, run_build},
+    cache::Cache,
+    cli_config::CliConfig,
     terminal::Terminal,
     tracer::CliTracer,
 };

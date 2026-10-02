@@ -5,12 +5,10 @@ use chariot_core::workdir::WorkDirectory;
 use log::info;
 
 use crate::{
-    cli::{
-        args::{CacheCommand, CacheOptions},
-        cache::{Cache, prune_store_and_ledger},
-        config::{hash_config, load_profile_config, read_base_config_and_dir},
-    },
-    config::CliConfig,
+    args::{CacheCommand, CacheOptions},
+    cache::{Cache, prune_store_and_ledger},
+    cli_config::CliConfig,
+    config::{hash_config, load_profile_config, read_base_config_and_dir},
 };
 
 pub fn run(options: CacheOptions, local_config: &CliConfig) -> Result<()> {
