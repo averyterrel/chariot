@@ -27,3 +27,5 @@ serde_json.workspace = true
 console = "0.16.6"
 dirs = "7.0.0"
 rusqlite.workspace = true
+futures-util = "0.3.34"
+tokio-stream = "0.1.19"
