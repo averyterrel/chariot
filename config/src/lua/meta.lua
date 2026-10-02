@@ -44,6 +44,7 @@
 ---@field revision integer
 ---@field dependencies Dependencies
 ---@field runtime_dependencies PackageRef[]
+---@field environment_variables table<string, any>
 ---@field configure? string
 ---@field build? string
 ---@field install string

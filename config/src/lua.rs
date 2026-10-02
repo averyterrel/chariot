@@ -308,6 +308,9 @@ pub fn eval_lua_config(
             let runtime_dependencies = pkg
                 .get::<Table>("runtime_dependencies")
                 .context("`runtime_dependencies` must be a table")?;
+            let environment_variables = pkg
+                .get::<Table>("environment_variables")
+                .context("`environment_variables` must be a table")?;
             let configure = pkg.get::<Option<String>>("configure").context("`configure` must be a string or nil")?;
             let build = pkg.get::<Option<String>>("build").context("`build` must be a string or nil")?;
             let install = pkg.get::<String>("install").context("`install` must be a string")?;
@@ -331,7 +334,13 @@ pub fn eval_lua_config(
                 )));
             }
 
-            let mut environment_variables = BTreeMap::new();
+            let mut environment_variables = environment_variables
+                .pairs()
+                .map(|pair| {
+                    let (k, v): (Value, Value) = pair?;
+                    Ok((k.to_string()?.to_string(), v.to_string()?.to_string()))
+                })
+                .collect::<Result<BTreeMap<String, String>, mlua::Error>>()?;
 
             let mut dependencies = parse_dependencies_table(dependencies)?;
             if let Some(source) = source {

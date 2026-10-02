@@ -143,6 +143,7 @@ local function pkg_helper(platform, tbl)
         name = { true, "string" },
         version = { true, "string" },
         revision = { true, "number" },
+        env = { false, "table" },
         source = { false, "userdata" },
         dependencies = { false, "table" },
         runtime_dependencies = { false, "table" },
@@ -157,6 +158,21 @@ local function pkg_helper(platform, tbl)
         end
 
         pkg[key] = tbl[key]
+    end
+
+    pkg["environment_variables"] = {}
+    if type(tbl["env"]) ~= "nil" then
+        for k, v in pairs(tbl["env"]) do
+            if type(k) ~= "string" then
+                error("env must only contain string keys")
+            end
+
+            if type(v) ~= "string" and type(v) ~= "number" then
+                error("env must only contain string or number values")
+            end
+
+            pkg["environment_variables"][k] = v
+        end
     end
 
     pkg["dependencies"] = {}
@@ -185,13 +201,13 @@ local function pkg_helper(platform, tbl)
 end
 
 --- Define a target package and return a reference to it.
---- @param pkg { name: string, version: string, revision: number, source: SourceRef?, dependencies?: Dependency[], runtime_dependencies?: PackageRef[], configure?: string, build?: string, install: string }
+--- @param pkg { name: string, version: string, revision: number, source: SourceRef?, dependencies?: Dependency[], runtime_dependencies?: PackageRef[], env?: table<string, string | number>, configure?: string, build?: string, install: string }
 function Package(pkg)
     return pkg_helper("target", pkg)
 end
 
 --- Define a host package and return a reference to it.
---- @param tool { name: string, version: string, revision: number, source: SourceRef?, dependencies?: Dependency[], runtime_dependencies?: PackageRef[], configure?: string, build?: string, install: string }
+--- @param tool { name: string, version: string, revision: number, source: SourceRef?, dependencies?: Dependency[], runtime_dependencies?: PackageRef[], env?: table<string, string | number>, configure?: string, build?: string, install: string }
 function Tool(tool)
     return pkg_helper("host", tool)
 end
