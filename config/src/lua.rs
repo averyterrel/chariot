@@ -195,6 +195,7 @@ pub fn eval_lua_config(
             Ok(entries)
         })?
     })?;
+    chariot_table.set("concat_paths", lua.create_function(|_, (a, b): (PathBuf, PathBuf)| Ok(a.join(b)))?)?;
     chariot_table.set("def_source", {
         let source_overrides = source_overrides.clone();
         let project_root = project_root.as_ref().to_path_buf();

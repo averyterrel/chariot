@@ -49,3 +49,13 @@ function table.print(table)
         print(k .. "=" .. v)
     end
 end
+
+--- Concat paths together.
+--- @param path string
+--- @param ... string
+function Path(path, ...)
+    for _, v in ipairs({ ... }) do
+        path = chariot.concat_paths(path, v)
+    end
+    return path
+end

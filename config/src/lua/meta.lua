@@ -69,6 +69,12 @@ function chariot.read_file(path) end
 ---@return { filename: string, is_dir: boolean }[]
 function chariot.list_dir(path) end
 
+--- Concatenates two paths together in a platform correct way.
+---@param path1 string
+---@param path2 string
+---@return string
+function chariot.concat_paths(path1, path2) end
+
 --- Registers a source and returns a handle to it.
 ---@param name string
 ---@param base SourceBase
