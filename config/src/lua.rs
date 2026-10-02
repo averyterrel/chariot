@@ -85,9 +85,8 @@ impl UserData for PackageRef {}
 
 fn parse_dependencies_table(table: Table) -> Result<Dependencies, mlua::Error> {
     let mut dependencies = Dependencies::default();
-    for pair in table.pairs() {
-        let (_, dep): (Value, Value) = pair?;
-        match dep {
+    for dep in table.sequence_values() {
+        match dep? {
             Value::UserData(ud) if let Ok(source_ref) = ud.borrow::<SourceRef>() => dependencies.sources.push(source_ref.0.clone()),
             Value::UserData(ud) if let Ok(package_ref) = ud.borrow::<PackageRef>() => {
                 match package_ref.0.platform {
