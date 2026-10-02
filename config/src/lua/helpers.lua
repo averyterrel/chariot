@@ -83,7 +83,7 @@ function Local(path)
 end
 
 --- Define a source and return a reference to it.
---- @param tbl { name: string, base: ArchiveSource|GitSource, patches?: string[], prepare: string, dependencies: Dependency[] }
+--- @param tbl { name: string, base: ArchiveSource|GitSource, patches?: string[], prepare?: string, dependencies?: Dependency[], env?: table<string, string | number> }
 --- @return SourceRef
 function Source(tbl)
     local name = tbl["name"]
@@ -119,12 +119,19 @@ function Source(tbl)
 
     local script = tbl["prepare"]
     local deps = tbl["dependencies"]
+    local env = tbl["env"]
 
     local prepare = nil
     if script ~= nil then
-        prepare = { dependencies = deps or {}, script = script }
-    elseif deps ~= nil then
-        warn("prepare skipped, `dependencies` is defined but `script` is not")
+        prepare = { dependencies = deps or {}, environment_variables = env or {}, script = script }
+    else
+        if deps ~= nil then
+            warn("prepare skipped, `dependencies` is defined but `script` is not")
+        end
+
+        if env ~= nil then
+            warn("prepare skipped, `env` is defined but `script` is not")
+        end
     end
 
     return chariot.def_source(name, base, patches, prepare)

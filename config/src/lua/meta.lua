@@ -29,6 +29,7 @@
 ---@class SourcePrepare
 ---@field script string
 ---@field dependencies Dependencies
+---@field environment_variables table<string, any>
 
 ---@class SourceRef : userdata
 ---@class PackageRef : userdata

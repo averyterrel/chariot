@@ -269,9 +269,21 @@ pub fn eval_lua_config(
                     (Some(prepare), None) | (Some(prepare), Some(true)) => {
                         let script = prepare.get::<String>("script").context("`script` must be a string")?;
                         let dependencies = parse_dependencies_table(prepare.get::<Table>("dependencies").context("`dependencies` must be a table")?)?;
+                        let environment_variables = prepare
+                            .get::<Table>("environment_variables")
+                            .context("`environment_variables must be a table")?;
+
+                        let environment_variables = environment_variables
+                            .pairs()
+                            .map(|pair| {
+                                let (k, v): (Value, Value) = pair?;
+                                Ok((k.to_string()?.to_string(), v.to_string()?.to_string()))
+                            })
+                            .collect::<Result<BTreeMap<String, String>, mlua::Error>>()?;
+
                         Some(SourcePrepare {
                             global_env: global_environment.clone(),
-                            environment_variables: BTreeMap::new(),
+                            environment_variables,
                             dependencies,
                             script: Script::new(ScriptLanguage::Bash, script),
                         })
