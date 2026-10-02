@@ -143,6 +143,8 @@ local function pkg_helper(platform, tbl)
         name = { true, "string" },
         version = { true, "string" },
         revision = { true, "number" },
+        dependencies = { false, "table" },
+        runtime_dependencies = { false, "table" },
         configure = { false, "string" },
         build = { false, "string" },
         install = { true, "string" },
@@ -158,25 +160,17 @@ local function pkg_helper(platform, tbl)
 
     pkg["dependencies"] = {}
     if type(tbl["dependencies"]) ~= "nil" then
-        if type(tbl["dependencies"]) ~= "table" then
-            error("dependencies must be a table or nil")
-        end
-
         for k, v in pairs(tbl["dependencies"]) do
-            local key = k
-            if k == "_" then
-                key = pkg["name"]
+            if type(k) ~= "number" then
+                error("dependencies must only contain numeric keys")
             end
-            pkg["dependencies"][key] = v
+
+            pkg["dependencies"][k] = v
         end
     end
 
     pkg["runtime_dependencies"] = {}
     if type(tbl["runtime_dependencies"]) ~= "nil" then
-        if type(tbl["runtime_dependencies"]) ~= "table" then
-            error("runtime_dependencies must be a table or nil")
-        end
-
         for k, v in pairs(tbl["runtime_dependencies"]) do
             if type(k) ~= "number" then
                 error("runtime_dependencies must only contain numeric keys")
