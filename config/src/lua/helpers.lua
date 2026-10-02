@@ -87,13 +87,29 @@ end
 --- @return SourceRef
 function Source(tbl)
     local name = tbl["name"]
+    if name == nil then
+        for i = 1, #tbl do
+            if type(tbl[i]) == "string" then
+                name = tbl[i]
+                break
+            end
+        end
+    end
     if type(name) ~= "string" then
         error("name must be a string")
     end
 
     local base = tbl["base"]
-    if base == nil and #tbl >= 1 then
-        base = tbl[1]
+    if base == nil then
+        for i = 1, #tbl do
+            if type(tbl[i]) == "table" then
+                base = tbl[i]
+                break
+            end
+        end
+    end
+    if base == nil then
+        error("no source base provided")
     end
 
     local patches = {}
