@@ -9,7 +9,7 @@ use crate::{
     CoreContext,
     buildcache::BuildDirectory,
     config::{package::Package, source::Source},
-    execenv::{EXECENV_SOURCES_DIRECTORY_PATH, ExecEnv},
+    execenv::ExecEnv,
     executor::{ExecuteError, Outcome, TaskOutput},
     graph::TaskId,
     store::StoreEntry,
@@ -110,17 +110,6 @@ pub(crate) fn build(
             },
         };
 
-        let source_dir = if package.dependencies.sources.iter().any(|source| source.name == package.name) {
-            Some(
-                PathBuf::from(EXECENV_SOURCES_DIRECTORY_PATH)
-                    .join(&package.name)
-                    .to_string_lossy()
-                    .to_string(),
-            )
-        } else {
-            None
-        };
-
         let base_env = package
             .global_env
             .global_environment_variables
@@ -132,10 +121,6 @@ pub(crate) fn build(
                 ("PREFIX", package.get_prefix()),
                 ("ARCH", package.get_arch()),
             ])
-            .chain(match &source_dir {
-                Some(dir) => Some(("SOURCE_DIR", dir.as_str())),
-                None => None,
-            })
             .collect();
 
         if let Some(configure) = &package.configure {

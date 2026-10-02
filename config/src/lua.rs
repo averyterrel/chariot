@@ -6,11 +6,14 @@ use std::{
     sync::Arc,
 };
 
-use chariot_core::config::{
-    Config, Dependencies, GlobalEnvironment,
-    package::{Package, PackagePlatform},
-    script::{Script, ScriptLanguage},
-    source::{Archive, ArchiveCompression, ArchiveKind, GitSource, LocalSource, Source, SourceBase, SourcePrepare},
+use chariot_core::{
+    config::{
+        Config, Dependencies, GlobalEnvironment,
+        package::{Package, PackagePlatform},
+        script::{Script, ScriptLanguage},
+        source::{Archive, ArchiveCompression, ArchiveKind, GitSource, LocalSource, Source, SourceBase, SourcePrepare},
+    },
+    execenv::EXECENV_SOURCES_DIRECTORY_PATH,
 };
 use chariot_util::{
     fs::{FileSystemError, copy_recursive, dir_entries, force_rm, join_soft},
@@ -300,6 +303,7 @@ pub fn eval_lua_config(
             let name = pkg.get::<String>("name").context("`name` must be a string")?;
             let version = pkg.get::<String>("version").context("`version` must be a string")?;
             let revision = pkg.get::<usize>("revision").context("`revision` must be a positive integer")?;
+            let source = pkg.get::<Option<Value>>("source").context("`source` must be a source")?;
             let dependencies = pkg.get::<Table>("dependencies").context("`dependencies` must be a table")?;
             let runtime_dependencies = pkg
                 .get::<Table>("runtime_dependencies")
@@ -327,7 +331,24 @@ pub fn eval_lua_config(
                 )));
             }
 
-            let dependencies = parse_dependencies_table(dependencies)?;
+            let mut environment_variables = BTreeMap::new();
+
+            let mut dependencies = parse_dependencies_table(dependencies)?;
+            if let Some(source) = source {
+                match source {
+                    Value::UserData(ud) if let Ok(source_ref) = ud.borrow::<SourceRef>() => {
+                        environment_variables.insert(
+                            String::from("SOURCE_DIR"),
+                            PathBuf::from(EXECENV_SOURCES_DIRECTORY_PATH)
+                                .join(&source_ref.0.name)
+                                .to_string_lossy()
+                                .to_string(),
+                        );
+                        dependencies.sources.push(source_ref.0.clone());
+                    }
+                    source => return Err(Error::runtime(format!("invalid source `{}`", source.to_string()?))),
+                }
+            }
 
             let runtime_dependencies = {
                 let mut rdeps = Vec::new();
@@ -353,7 +374,7 @@ pub fn eval_lua_config(
                 revision,
                 dependencies,
                 runtime_dependencies,
-                environment_variables: BTreeMap::new(),
+                environment_variables,
                 configure: configure.map(|configure| Script::new(ScriptLanguage::Bash, configure)),
                 build: build.map(|build| Script::new(ScriptLanguage::Bash, build)),
                 install: Script::new(ScriptLanguage::Bash, install),

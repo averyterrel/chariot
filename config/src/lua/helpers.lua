@@ -143,6 +143,7 @@ local function pkg_helper(platform, tbl)
         name = { true, "string" },
         version = { true, "string" },
         revision = { true, "number" },
+        source = { false, "userdata" },
         dependencies = { false, "table" },
         runtime_dependencies = { false, "table" },
         configure = { false, "string" },
@@ -184,13 +185,13 @@ local function pkg_helper(platform, tbl)
 end
 
 --- Define a target package and return a reference to it.
---- @param pkg { name: string, version: string, revision: number, dependencies?: Dependency[], runtime_dependencies?: PackageRef[], configure?: string, build?: string, install: string }
+--- @param pkg { name: string, version: string, revision: number, source: SourceRef?, dependencies?: Dependency[], runtime_dependencies?: PackageRef[], configure?: string, build?: string, install: string }
 function Package(pkg)
     return pkg_helper("target", pkg)
 end
 
 --- Define a host package and return a reference to it.
---- @param tool { name: string, version: string, revision: number, dependencies?: Dependency[], runtime_dependencies?: PackageRef[], configure?: string, build?: string, install: string }
+--- @param tool { name: string, version: string, revision: number, source: SourceRef?, dependencies?: Dependency[], runtime_dependencies?: PackageRef[], configure?: string, build?: string, install: string }
 function Tool(tool)
     return pkg_helper("host", tool)
 end
