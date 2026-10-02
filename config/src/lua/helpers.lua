@@ -132,7 +132,7 @@ end
 
 local function pkg_helper(platform, tbl)
     if platform ~= "target" and platform ~= "host" then
-        error("wux fucked up, invalid platform " .. platform)
+        error("wux fucked up, invalid platform `" .. platform .. "`")
     end
 
     local pkg = {}
