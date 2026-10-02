@@ -55,12 +55,19 @@
 ---@field options table<string, string>
 chariot = {}
 
---- Reads a file's contents from disk.
+--- Reads a file's contents.
 --- **NOTE**: The path will be relative to the project root,
 --- which is the directory where the base config is.
 ---@param path string
 ---@return string
 function chariot.read_file(path) end
+
+--- Reads a directory's entries.
+--- **NOTE**: The path will be relative to the project root,
+--- which is the directory where the base config is.
+---@param path string
+---@return { filename: string, is_dir: boolean }[]
+function chariot.list_dir(path) end
 
 --- Registers a source and returns a handle to it.
 ---@param name string

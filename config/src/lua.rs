@@ -13,7 +13,7 @@ use chariot_core::config::{
     source::{Archive, ArchiveCompression, ArchiveKind, GitSource, LocalSource, Source, SourceBase, SourcePrepare},
 };
 use chariot_util::{
-    fs::{FileSystemError, copy_recursive, force_rm, join_soft},
+    fs::{FileSystemError, copy_recursive, dir_entries, force_rm, join_soft},
     hash::hash_directory,
 };
 use mlua::{Error, ErrorContext, Lua, LuaOptions, StdLib, Table, UserData, Value};
@@ -174,6 +174,25 @@ pub fn eval_lua_config(
         lua.create_function(move |_, path: PathBuf| {
             let project_root_relative_path = join_soft(&project_root, &path);
             Ok(read_to_string(project_root_relative_path).map_err(|err| Error::ExternalError(Arc::new(err)))?)
+        })?
+    })?;
+    chariot_table.set("list_dir", {
+        let project_root = project_root.as_ref().to_path_buf();
+        lua.create_function(move |l, path: PathBuf| {
+            let project_root_relative_path = join_soft(&project_root, &path);
+
+            let entries = l.create_table()?;
+            for entry in dir_entries(project_root_relative_path).map_err(|err| Error::ExternalError(Arc::new(err)))? {
+                let meta = entry.metadata().map_err(|err| Error::ExternalError(Arc::new(err)))?;
+
+                let entry_table = l.create_table()?;
+                entry_table.set("filename", entry.file_name())?;
+                entry_table.set("is_dir", meta.is_dir())?;
+
+                entries.push(entry_table)?;
+            }
+
+            Ok(entries)
         })?
     })?;
     chariot_table.set("def_source", {
