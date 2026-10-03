@@ -132,8 +132,8 @@ pub struct ConfigOptions {
     #[arg(long, env = "CHARIOT_ARCH", help = "target architecture")]
     pub arch: String,
 
-    #[arg(long, env = "CHARIOT_OPTIONS", help = "user defined options", value_parser = parse_kv, value_delimiter = ',')]
-    pub options: Vec<(String, String)>,
+    #[arg(long, short, env = "CHARIOT_OPTIONS", help = "user defined option", value_parser = parse_kv, value_delimiter = ',')]
+    pub option: Vec<(String, String)>,
 
     #[arg(long, help = "allow creation of new profiles without user input")]
     pub allow_new_profiles: bool,

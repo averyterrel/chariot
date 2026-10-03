@@ -33,7 +33,7 @@ pub struct ResolvedProfile {
 }
 
 pub fn resolve_profile(cache: &Cache, config_opts: ConfigOptions, local_config: &CliConfig) -> Result<ResolvedProfile> {
-    let options = HashMap::from_iter(config_opts.options);
+    let options = HashMap::from_iter(config_opts.option);
 
     let workdir_parent = cache.open_workdir_parent()?;
     let local_sources_workdir = WorkDirectory::create(&workdir_parent)?;
