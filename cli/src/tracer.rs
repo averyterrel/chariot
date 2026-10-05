@@ -18,6 +18,7 @@ struct TaskState {
 }
 
 struct Progress {
+    cached: usize,
     completed: usize,
     total: usize,
 }
@@ -33,16 +34,23 @@ impl CliTracer {
         Self {
             terminal,
             tasks: Mutex::new(HashMap::new()),
-            progress: Mutex::new(Progress { completed: 0, total: 0 }),
+            progress: Mutex::new(Progress {
+                completed: 0,
+                cached: 0,
+                total: 0,
+            }),
         }
     }
 
-    fn advance_progress(&self, total_delta: usize, completed_delta: usize) {
+    fn advance_progress(&self, total_delta: usize, completed_delta: usize, cached_delta: usize) {
         let mut progress = self.progress.lock().unwrap();
         progress.total += total_delta;
         progress.completed += completed_delta;
-        self.terminal
-            .set_footer(format!("{}/{} tasks completed", progress.completed, progress.total));
+        progress.cached += cached_delta;
+        self.terminal.set_footer(format!(
+            "{}/{} tasks done ({} cache hits)",
+            progress.completed, progress.total, progress.cached
+        ));
     }
 
     fn label_for(kind: &TaskKind) -> String {
@@ -81,7 +89,7 @@ impl Tracer for CliTracer {
             },
         );
         drop(tasks);
-        self.advance_progress(1, 0);
+        self.advance_progress(1, 0, 0);
     }
 
     fn task_status(&self, id: TaskId, status: TaskStatus) {
@@ -95,17 +103,11 @@ impl Tracer for CliTracer {
                 return;
             }
             TaskStatus::CacheHit => {
-                self.terminal
-                    .println(style(format!("* cached: {}", state.label)).dim().green().for_stderr().to_string());
+                self.advance_progress(0, 1, 1);
             }
             TaskStatus::Failed { message, log } => {
-                self.terminal.println(
-                    style(format!("* failed: {}: {}", state.label, message))
-                        .dim()
-                        .red()
-                        .for_stderr()
-                        .to_string(),
-                );
+                self.terminal
+                    .println(style(format!("* failed: {}: {}", state.label, message)).red().for_stderr().to_string());
 
                 if let Some(log) = log
                     && !log.trim().is_empty()
@@ -113,7 +115,6 @@ impl Tracer for CliTracer {
                     let line = "-".repeat(10);
                     self.terminal.println(
                         style(format!("{line} start log {line}\n{}\n{line} end log {line}", strip_ansi_codes(&log)))
-                            .dim()
                             .for_stderr()
                             .to_string(),
                     );
@@ -121,20 +122,19 @@ impl Tracer for CliTracer {
             }
             TaskStatus::Skipped => {
                 self.terminal
-                    .println(style(format!("skipped: {}", state.label)).dim().yellow().for_stderr().to_string());
+                    .println(style(format!("* skipped: {}", state.label)).dim().yellow().for_stderr().to_string());
             }
             TaskStatus::Finished => {
                 self.terminal
-                    .println(style(format!("* finished: {}", state.label)).dim().green().for_stderr().to_string());
+                    .println(style(format!("* completed: {}", state.label)).dim().green().for_stderr().to_string());
+
+                self.advance_progress(0, 1, 0);
             }
         }
 
         if let Some(bar) = state.bar.take() {
             self.terminal.remove_bar(bar);
         }
-
-        drop(tasks);
-        self.advance_progress(0, 1);
     }
 
     fn package_step(&self, id: TaskId, _step: PackageStep) -> Box<dyn Logger> {
