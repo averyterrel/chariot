@@ -12,9 +12,14 @@ Chariot is a meta-build system used for building bootstrapping operating systems
 
 ## Getting Started
 
+### For users
+- If you have `nix`, run `nix shell github:chariot-build/chariot` and use the `chariot` command.
+- Otherwise, TODO <!-- ahem -->
+
+### For developers
 A minimal project using chariot will have the primary config file `chariot_config.toml` and the main script file called `chariot.lua`.  
 
-### The Primary Config
+#### Config
 ```toml
 [rootfs]
 version = "debian/20260901T000000Z"
@@ -22,7 +27,7 @@ hash = "7a9147a2fce8ac2bae29fcde0b822ce613ffc73b66acf080c70301f386afee81"
 ```
 This file defines a few global options but the only required one is to define the rootfs as in the above example. It defines the name/version of it and the hash so it can be verified properly.
 
-### The Primary Script
+#### Primary Script
 ```lua
 local NASM_VERSION <const> = "3.02"
 
