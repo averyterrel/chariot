@@ -23,9 +23,7 @@ pub mod tracer;
 pub mod workdir;
 pub mod xbps;
 
-pub const HOST_ARCH: &str = "x86_64";
-pub const NOARCH_ARCH: &str = "noarch";
-
+pub const HOST_ARCH: &str = std::env::consts::ARCH;
 pub const HOST_PREFIX: &str = "/usr/local";
 pub const DEFAULT_TARGET_PREFIX: &str = "/usr";
 

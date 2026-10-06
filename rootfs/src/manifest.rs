@@ -17,6 +17,7 @@ use url::Url;
 pub const ROOTFS_MANIFEST_VERSION: i64 = 6;
 
 const MANIFEST_URL_VERSION_PLACEHOLDER: &str = "@VERSION@";
+const MANIFEST_URL_ARCH_PLACEHOLDER: &str = "@ARCH@";
 pub const PLACEHOLDER_ROOT_PACKAGES: &str = "@ROOT_PACKAGES@";
 pub const PLACEHOLDER_PACKAGE: &str = "@PACKAGE@";
 const MANIFEST_KEY_VERSION: &str = "manifest_version";
@@ -75,6 +76,9 @@ pub enum ManifestFetchError {
     #[error("Manifest URL `{}` is invalid (no version placeholder)", url)]
     InvalidManifestURLMissingVersion { url: String },
 
+    #[error("Manifest URL `{}` is invalid (no arch placeholder)", url)]
+    InvalidManifestURLMissingArch { url: String },
+
     #[error("Manifest is missing or has an invalid version")]
     InvalidManifestVersion,
 
@@ -115,11 +119,20 @@ impl Manifest {
         if !spec.url.contains(MANIFEST_URL_VERSION_PLACEHOLDER) {
             return Err(ManifestFetchError::InvalidManifestURLMissingVersion { url: spec.url.clone() });
         }
-        let url = Url::from_str(&spec.url.replace(MANIFEST_URL_VERSION_PLACEHOLDER, &spec.version)).map_err(|err| {
-            ManifestFetchError::InvalidManifestURL {
-                url: spec.url.clone(),
-                source: err,
-            }
+
+        if !spec.url.contains(MANIFEST_URL_ARCH_PLACEHOLDER) {
+            return Err(ManifestFetchError::InvalidManifestURLMissingArch { url: spec.url.clone() });
+        }
+
+        let url = Url::from_str(
+            &spec
+                .url
+                .replace(MANIFEST_URL_VERSION_PLACEHOLDER, &spec.version)
+                .replace(MANIFEST_URL_ARCH_PLACEHOLDER, std::env::consts::ARCH),
+        )
+        .map_err(|err| ManifestFetchError::InvalidManifestURL {
+            url: spec.url.clone(),
+            source: err,
         })?;
 
         let client = Client::builder().connect_timeout(Duration::from_secs(10)).build()?;

@@ -34,7 +34,7 @@ mod manifest;
 mod pkgset;
 mod state;
 
-pub const DEFAULT_MANIFESTS_URL: &str = "https://cdn.chariot-build.dev/manifests/x86_64/@VERSION@.toml";
+pub const DEFAULT_MANIFESTS_URL: &str = "https://cdn.chariot-build.dev/manifests/@ARCH@/@VERSION@.toml";
 
 const ROOT_UID: u32 = 0;
 const ROOT_GID: u32 = 0;
