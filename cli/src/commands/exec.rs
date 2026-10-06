@@ -92,6 +92,9 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
     let target_packages: Vec<(&Package, Vec<PathBuf>)> = packages.iter().map(|&pkg| (pkg.as_ref(), manager.package_install_paths(pkg))).collect();
     let host_tools: Vec<(&Package, Vec<PathBuf>)> = tools.iter().map(|&pkg| (pkg.as_ref(), manager.package_install_paths(pkg))).collect();
     let sources: Vec<(&Source, Vec<PathBuf>)> = source_deps.iter().map(|source| (source.as_ref(), manager.source_paths(source))).collect();
+    let source = build_env_pkg
+        .map(|pkg| pkg.source.as_ref().map(|source| (source.as_ref(), manager.source_paths(source))))
+        .flatten();
 
     let mountpoint_overlay_workdir = WorkDirectory::create(&ctx.workdir_parent)?;
     let mountpoint_overlay_overlay_path = mountpoint_overlay_workdir.path().join("mountpoint_overlay");
@@ -107,6 +110,7 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
         &ctx,
         || Box::new(CapturingLogger::new(stderr())),
         pkgset,
+        source,
         &sources,
         &target_packages,
         &host_tools,

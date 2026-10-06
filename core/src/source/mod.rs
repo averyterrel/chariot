@@ -168,6 +168,7 @@ pub(crate) fn fetch(
         ctx,
         || tracer.prepare_step(id, PrepareStep::InstallPackage),
         pkgset,
+        None,
         sources,
         target_packages,
         host_tools,

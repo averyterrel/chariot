@@ -350,9 +350,19 @@ impl<'a> BuildManager<'a> {
     }
 
     fn execute_package(&self, id: TaskId, package: &Arc<Package>) -> Result<Outcome, ExecuteError> {
+        let source = package.source.as_ref().map(|source| (source.as_ref(), self.source_paths(source)));
         let (sources, target_packages, host_tools) = self.dependency_paths(&package.dependencies);
 
-        package::build(self.ctx, self.tracer.as_ref(), id, package, &sources, &target_packages, &host_tools)
+        package::build(
+            self.ctx,
+            self.tracer.as_ref(),
+            id,
+            package,
+            source,
+            &sources,
+            &target_packages,
+            &host_tools,
+        )
     }
 
     fn execute_source(&self, id: TaskId, source: &Arc<Source>) -> Result<Outcome, ExecuteError> {

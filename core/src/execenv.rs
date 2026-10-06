@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
     io::Write,
+    iter,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -23,6 +24,7 @@ use crate::{
     xbps::{XBPSPackageInstallError, package_install},
 };
 
+pub const EXECENV_SOURCE_DIRECTORY_PATH: &str = "/chariot/source";
 pub const EXECENV_SOURCES_DIRECTORY_PATH: &str = "/chariot/sources";
 pub const EXECENV_SYSROOT_DIRECTORY_PATH: &str = "/chariot/sysroot";
 
@@ -52,6 +54,7 @@ impl CreateExecEnvError {
 pub struct ExecEnv<'a> {
     pub ctx: &'a CoreContext,
     pub pkgset: Option<Arc<CachedPkgSet>>,
+    pub source: Option<Vec<PathBuf>>,
     pub sources: HashMap<String, Vec<PathBuf>>,
     pub sysroot: WorkDirectory,
     pub tool_overlay: Option<WorkDirectory>,
@@ -64,6 +67,7 @@ impl<'a> ExecEnv<'a> {
         ctx: &'a CoreContext,
         mut install_logger: impl FnMut() -> Box<dyn Logger>,
         pkgset: Option<Arc<CachedPkgSet>>,
+        source: Option<(&Source, Vec<PathBuf>)>,
         sources: &[(&Source, Vec<PathBuf>)],
         target_packages: &[(&Package, Vec<PathBuf>)],
         host_tools: &[(&Package, Vec<PathBuf>)],
@@ -128,6 +132,7 @@ impl<'a> ExecEnv<'a> {
         Ok(Self {
             ctx,
             pkgset,
+            source: source.map(|(_, paths)| paths.clone()),
             sources: sources.iter().map(|(source, paths)| (source.name.clone(), paths.clone())).collect(),
             sysroot,
             tool_overlay,
@@ -138,6 +143,16 @@ impl<'a> ExecEnv<'a> {
 
     pub fn compute_deps_hash(&self) -> Result<u128, FileSystemError> {
         let mut hasher = Xxh3::new();
+
+        match &self.source {
+            Some(paths) => {
+                hasher.write_u8(1);
+                for path in paths {
+                    hash_directory(path, &mut hasher)?;
+                }
+            }
+            None => hasher.write_u8(0),
+        }
 
         let mut names = self.sources.keys().collect::<Vec<_>>();
         names.sort();
@@ -171,24 +186,27 @@ impl<'a> ExecEnv<'a> {
         stderr: StderrTarget<'_>,
         args: Vec<impl AsRef<str>>,
     ) -> Result<i32, RuntimeError> {
-        let source_mounts = self
-            .sources
-            .iter()
-            .map(|(name, paths)| Mount {
-                dest: PathBuf::from(EXECENV_SOURCES_DIRECTORY_PATH).join(name),
-                kind: match paths.len() {
-                    1 => MountKind::Bind {
-                        from: paths[0].clone(),
-                        read_only: true,
-                        is_file: false,
-                    },
-                    _ => MountKind::OverlayFS(Overlay {
-                        upper_directory: None,
-                        lower_directories: paths.iter().cloned().rev().collect(),
-                    }),
+        let source_mounts = iter::chain(
+            self.sources
+                .iter()
+                .map(|(name, paths)| (PathBuf::from(EXECENV_SOURCES_DIRECTORY_PATH).join(name), paths)),
+            self.source.as_ref().map(|paths| (PathBuf::from(EXECENV_SOURCE_DIRECTORY_PATH), paths)),
+        )
+        .map(|(dest, paths)| Mount {
+            dest,
+            kind: match paths.len() {
+                1 => MountKind::Bind {
+                    from: paths[0].clone(),
+                    read_only: true,
+                    is_file: false,
                 },
-            })
-            .collect::<Vec<_>>();
+                _ => MountKind::OverlayFS(Overlay {
+                    upper_directory: None,
+                    lower_directories: paths.iter().cloned().rev().collect(),
+                }),
+            },
+        })
+        .collect::<Vec<_>>();
 
         let sysroot_mount = Mount {
             dest: PathBuf::from(EXECENV_SYSROOT_DIRECTORY_PATH),
@@ -223,11 +241,15 @@ impl<'a> ExecEnv<'a> {
 
         let parallelism_string = self.ctx.parallelism.to_string();
 
-        let base_env = HashMap::from([
+        let mut base_env = HashMap::from([
             ("SOURCES_DIR", EXECENV_SOURCES_DIRECTORY_PATH),
             ("SYSROOT_DIR", EXECENV_SYSROOT_DIRECTORY_PATH),
             ("PARALLELISM", &parallelism_string),
         ]);
+
+        if self.source.is_some() {
+            base_env.insert("SOURCE_DIR", EXECENV_SOURCE_DIRECTORY_PATH);
+        }
 
         self.ctx.rootfs.exec(
             cwd,

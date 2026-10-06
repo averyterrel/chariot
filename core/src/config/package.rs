@@ -8,7 +8,7 @@ use xxhash_rust::xxh3::Xxh3;
 
 use crate::{
     HOST_ARCH, HOST_PREFIX,
-    config::{CONFIG_VERSION, Dependencies, GlobalEnvironment, script::Script},
+    config::{CONFIG_VERSION, Dependencies, GlobalEnvironment, script::Script, source::Source},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -33,6 +33,7 @@ pub struct Package {
     pub name: String,
     pub version: String,
     pub revision: usize,
+    pub source: Option<Arc<Source>>,
     pub dependencies: Dependencies,
     pub runtime_dependencies: Vec<Arc<Package>>,
     pub environment_variables: BTreeMap<String, String>,
@@ -77,6 +78,7 @@ impl Package {
     pub fn get_content_hash(&self) -> u128 {
         let mut hasher = Xxh3::new();
         self.get_content_base_hash().hash(&mut hasher);
+        self.source.hash(&mut hasher);
         self.dependencies.sources.hash(&mut hasher);
         self.dependencies.tools.hash(&mut hasher);
         self.dependencies.packages.hash(&mut hasher);

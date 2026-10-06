@@ -123,6 +123,11 @@ impl BuildGraphBuilder {
         });
         self.graph.package_ids.insert(ptr, id);
 
+        if let Some(source) = &pkg.source {
+            let source_id = self.visit_source(source);
+            self.graph.nodes[id.0].dependencies.push(source_id);
+        }
+
         for dependency in &pkg.dependencies.sources {
             let source_id = self.visit_source(dependency);
             self.graph.nodes[id.0].dependencies.push(source_id);
