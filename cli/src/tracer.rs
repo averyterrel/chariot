@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 
 use chariot_core::{
@@ -125,8 +126,23 @@ impl Tracer for CliTracer {
                     .println(style(format!("* skipped: {}", state.label)).dim().yellow().for_stderr().to_string());
             }
             TaskStatus::Finished => {
-                self.terminal
-                    .println(style(format!("* completed: {}", state.label)).dim().green().for_stderr().to_string());
+                self.terminal.println(
+                    style(format!(
+                        "* completed{}: {}",
+                        if let Some(bar) = &state.bar
+                            && let Some(elapsed) = self.terminal.get_bar_elapsed(*bar)
+                        {
+                            format!(" in {}", format_duration(elapsed))
+                        } else {
+                            String::new()
+                        },
+                        state.label,
+                    ))
+                    .dim()
+                    .green()
+                    .for_stderr()
+                    .to_string(),
+                );
 
                 self.advance_progress(0, 1, 0);
             }
@@ -147,5 +163,16 @@ impl Tracer for CliTracer {
 
     fn prepare_step(&self, id: TaskId, _step: PrepareStep) -> Box<dyn Logger> {
         self.step_logger(id)
+    }
+}
+
+fn format_duration(d: Duration) -> String {
+    let total = d.as_secs();
+    let (h, m, s) = (total / 3600, (total % 3600) / 60, total % 60);
+
+    match (h, m) {
+        (0, 0) => format!("{s}s"),
+        (0, _) => format!("{m}m {s}s"),
+        _ => format!("{h}h {m}m {s}s"),
     }
 }

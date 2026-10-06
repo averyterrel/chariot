@@ -128,6 +128,10 @@ impl Terminal {
         id
     }
 
+    pub fn get_bar_elapsed(&self, id: usize) -> Option<Duration> {
+        self.bars.lock().unwrap().get_mut(&id).map(|bar| bar.elapsed())
+    }
+
     pub fn remove_bar(&self, id: usize) {
         self.bars.lock().unwrap().remove(&id);
     }
