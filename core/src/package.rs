@@ -2,7 +2,7 @@ use std::{hash::Hash, path::PathBuf};
 
 use chariot_rootfs::CachedPkgSet;
 use chariot_runtime::{Mount, MountKind, StderrTarget};
-use chariot_util::hash::hash_directory;
+use chariot_util::{fs::force_rm_contents, hash::hash_directory};
 use xxhash_rust::xxh3::Xxh3;
 
 use crate::{
@@ -87,28 +87,19 @@ pub(crate) fn build(
             break 'install store_entry;
         }
 
-        let mut _build_cachedir = None;
-        let mut _build_workdir = None;
-        let build_dir_path = if ctx
+        let build_cachedir = BuildDirectory::get_rw(&ctx.build_cache, package.platform, package.get_arch(), &package.name)?;
+        if !ctx
             .build_cache_enabled
             .iter()
             .any(|(platform, name)| platform == &package.platform && name == &package.name)
         {
-            let build_dir = BuildDirectory::get_rw(&ctx.build_cache, package.platform, package.get_arch(), &package.name)?;
-            let path = build_dir.path();
-            _build_cachedir = Some(build_dir);
-            path
-        } else {
-            let workdir = WorkDirectory::create(&ctx.workdir_parent)?;
-            let path = workdir.path();
-            _build_workdir = Some(workdir);
-            path
+            force_rm_contents(build_cachedir.path(), None)?;
         };
 
         let build_mount = Mount {
             dest: PathBuf::from(PACKAGE_BUILD_DIR),
             kind: MountKind::Bind {
-                from: build_dir_path,
+                from: build_cachedir.path(),
                 read_only: false,
                 is_file: false,
             },
