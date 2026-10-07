@@ -36,7 +36,7 @@ pub fn run(lsp_options: LspOptions, local_config: &CliConfig) -> Result<()> {
     let cache = Cache::get(&lsp_options.common_build_opts.config_opts.cache)?;
 
     let mode = lsp_options.execution_opts.failure_mode();
-    let (ctx, config, _, _local_sources_workdir) = prepare_build(&cache, lsp_options.common_build_opts, local_config, None)?;
+    let (ctx, config, _local_sources_workdir) = prepare_build(&cache, lsp_options.common_build_opts, local_config, None)?;
 
     let build_env_pkg = find_package(&config, PackagePlatform::Target, &lsp_options.package)
         .with_context(|| format!("Failed to resolve package `{}`", lsp_options.package))?;

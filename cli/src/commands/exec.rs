@@ -38,7 +38,7 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
     let cache = Cache::get(&exec_options.common_build_opts.config_opts.cache)?;
 
     let mode = exec_options.execution_opts.failure_mode();
-    let (ctx, config, _, _local_sources_workdir) = prepare_build(&cache, exec_options.common_build_opts, local_config, Some(&terminal))?;
+    let (ctx, config, _local_sources_workdir) = prepare_build(&cache, exec_options.common_build_opts, local_config, Some(&terminal))?;
 
     let mut packages = exec_options
         .pkg
