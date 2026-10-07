@@ -18,7 +18,6 @@ pub fn run(build_opts: BuildOptions, local_config: &CliConfig) -> Result<()> {
 
     let cache = Cache::get(&build_opts.common_build_opts.config_opts.cache)?;
 
-    let worker_count = build_opts.execution_opts.worker_count;
     let mode = build_opts.execution_opts.failure_mode();
     let (ctx, config, cached_hashes, _local_sources_workdir) = prepare_build(&cache, build_opts.common_build_opts, local_config, &terminal)?;
 
@@ -34,7 +33,7 @@ pub fn run(build_opts: BuildOptions, local_config: &CliConfig) -> Result<()> {
 
     let tracer: Arc<dyn Tracer> = Arc::new(CliTracer::new(terminal.clone()));
 
-    if let Err(err) = run_build(&ctx, tracer, &selected_packages, &[], mode, worker_count) {
+    if let Err(err) = run_build(&ctx, tracer, &selected_packages, &[], mode) {
         drop(render_handle);
         return Err(err);
     }

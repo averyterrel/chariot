@@ -19,7 +19,6 @@ pub fn run(install_opts: InstallOptions, local_config: &CliConfig) -> Result<()>
 
     let cache = Cache::get(&install_opts.common_build_opts.config_opts.cache)?;
 
-    let worker_count = install_opts.execution_opts.worker_count;
     let mode = install_opts.execution_opts.failure_mode();
     let (ctx, config, cached_hashes, _local_sources_workdir) = prepare_build(&cache, install_opts.common_build_opts, local_config, &terminal)?;
 
@@ -35,7 +34,7 @@ pub fn run(install_opts: InstallOptions, local_config: &CliConfig) -> Result<()>
 
     let tracer: Arc<dyn Tracer> = Arc::new(CliTracer::new(terminal.clone()));
 
-    let manager = match run_build(&ctx, tracer, &selected_packages, &[], mode, worker_count) {
+    let manager = match run_build(&ctx, tracer, &selected_packages, &[], mode) {
         Ok(manager) => manager,
         Err(err) => {
             drop(render_handle);

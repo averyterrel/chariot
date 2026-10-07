@@ -5,6 +5,7 @@ use chariot_rootfs::{CachedPkgSet, RootFS};
 use crate::{
     buildcache::BuildCache,
     config::{Config, package::PackagePlatform},
+    jobserver::JobServer,
     ledger::Ledger,
     store::Store,
     workdir::WorkDirectoryParent,
@@ -15,6 +16,7 @@ pub mod config;
 pub mod execenv;
 pub mod executor;
 pub mod graph;
+pub mod jobserver;
 pub mod ledger;
 pub mod package;
 pub mod source;
@@ -30,6 +32,7 @@ pub const DEFAULT_TARGET_PREFIX: &str = "/usr";
 pub struct CoreContext {
     pub build_cache_enabled: HashSet<(PackagePlatform, String)>,
     pub parallelism: NonZero<usize>,
+    pub jobserver: JobServer,
     pub rootfs: Arc<RootFS>,
     pub store: Arc<Store>,
     pub ledger: Arc<Ledger>,

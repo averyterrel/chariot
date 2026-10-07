@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, VecDeque},
-    num::NonZero,
     path::PathBuf,
     sync::{Arc, Condvar, Mutex},
     thread,
@@ -157,7 +156,7 @@ impl<'a> BuildManager<'a> {
         }
     }
 
-    pub fn execute(&self, mode: FailureMode, worker_count: NonZero<usize>) -> BuildReport {
+    pub fn execute(&self, mode: FailureMode) -> BuildReport {
         let n = self.graph.len();
 
         let in_degree: HashMap<TaskId, usize> = self.graph.ids().map(|id| (id, self.graph.dependencies(id).len())).collect();
@@ -181,38 +180,39 @@ impl<'a> BuildManager<'a> {
         let condvar = Condvar::new();
 
         thread::scope(|scope| {
-            for _ in 0..worker_count.get() {
-                scope.spawn(|| self.worker(mode, &state, &dependents, &condvar));
+            loop {
+                let id = {
+                    let mut state = state.lock().unwrap();
+                    loop {
+                        if let Some(id) = state.ready.pop_front() {
+                            break id;
+                        }
+
+                        if state.pending_count == 0 {
+                            return;
+                        }
+
+                        state = condvar.wait(state).unwrap();
+                    }
+                };
+
+                if mode == FailureMode::FailFast && state.lock().unwrap().aborted {
+                    self.complete(mode, &state, &dependents, &condvar, id, Termination::Skipped);
+                    continue;
+                }
+
+                let token = self.ctx.jobserver.acquire();
+                let state = &state;
+                let dependents = &dependents;
+                let condvar = &condvar;
+                scope.spawn(move || {
+                    let _token = token;
+                    self.run_task(mode, state, dependents, condvar, id);
+                });
             }
         });
 
         state.into_inner().unwrap().report
-    }
-
-    fn worker(&self, mode: FailureMode, state: &Mutex<SchedulerState>, dependents: &HashMap<TaskId, Vec<TaskId>>, condvar: &Condvar) {
-        loop {
-            let id = {
-                let mut state = state.lock().unwrap();
-                loop {
-                    if let Some(id) = state.ready.pop_front() {
-                        break id;
-                    }
-
-                    if state.pending_count == 0 {
-                        return;
-                    }
-
-                    state = condvar.wait(state).unwrap();
-                }
-            };
-
-            if mode == FailureMode::FailFast && state.lock().unwrap().aborted {
-                self.complete(mode, state, dependents, condvar, id, Termination::Skipped);
-                continue;
-            }
-
-            self.run_task(mode, state, dependents, condvar, id);
-        }
     }
 
     fn run_task(&self, mode: FailureMode, state: &Mutex<SchedulerState>, dependents: &HashMap<TaskId, Vec<TaskId>>, condvar: &Condvar, id: TaskId) {

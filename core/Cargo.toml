@@ -8,6 +8,7 @@ authors.workspace = true
 chariot_runtime.workspace = true
 chariot_rootfs.workspace = true
 chariot_util.workspace = true
+nix = { workspace = true, features = ["fs"] }
 thiserror.workspace = true
 xxhash-rust.workspace = true
 rusqlite.workspace = true

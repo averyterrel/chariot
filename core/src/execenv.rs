@@ -27,6 +27,7 @@ use crate::{
 pub const EXECENV_SOURCE_DIRECTORY_PATH: &str = "/chariot/source";
 pub const EXECENV_SOURCES_DIRECTORY_PATH: &str = "/chariot/sources";
 pub const EXECENV_SYSROOT_DIRECTORY_PATH: &str = "/chariot/sysroot";
+pub const EXECENV_JOBSERVER_PATH: &str = "/chariot/jobserver";
 
 #[derive(Debug, Error)]
 pub enum CreateExecEnvError {
@@ -217,6 +218,15 @@ impl<'a> ExecEnv<'a> {
             },
         };
 
+        let jobserver_mount = Mount {
+            dest: PathBuf::from(EXECENV_JOBSERVER_PATH),
+            kind: MountKind::Bind {
+                from: self.ctx.jobserver.path().to_path_buf(),
+                read_only: false,
+                is_file: true,
+            },
+        };
+
         let mountpoint_mount = Mount {
             dest: PathBuf::from("/chariot"),
             kind: MountKind::FS {
@@ -234,17 +244,24 @@ impl<'a> ExecEnv<'a> {
             final_mounts.push(source_mount);
         }
         final_mounts.push(&sysroot_mount);
+        final_mounts.push(&jobserver_mount);
         for mount in mounts {
             final_mounts.push(mount);
         }
         final_mounts.push(&mountpoint_readonly_remount);
 
         let parallelism_string = self.ctx.parallelism.to_string();
+        let makeflags_string = format!(
+            "--jobserver-auth=fifo:{} -j{}",
+            EXECENV_JOBSERVER_PATH,
+            self.ctx.jobserver.total()
+        );
 
         let mut base_env = HashMap::from([
             ("SOURCES_DIR", EXECENV_SOURCES_DIRECTORY_PATH),
             ("SYSROOT_DIR", EXECENV_SYSROOT_DIRECTORY_PATH),
             ("PARALLELISM", &parallelism_string),
+            ("MAKEFLAGS", &makeflags_string),
         ]);
 
         if self.source.is_some() {

@@ -37,7 +37,6 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
 
     let cache = Cache::get(&exec_options.common_build_opts.config_opts.cache)?;
 
-    let worker_count = exec_options.execution_opts.worker_count;
     let mode = exec_options.execution_opts.failure_mode();
     let (ctx, config, _, _local_sources_workdir) = prepare_build(&cache, exec_options.common_build_opts, local_config, &terminal)?;
 
@@ -88,7 +87,6 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
         &packages.iter().chain(tools.iter()).copied().collect::<Vec<_>>(),
         &source_deps,
         mode,
-        worker_count,
     ) {
         Ok(manager) => manager,
         Err(err) => {

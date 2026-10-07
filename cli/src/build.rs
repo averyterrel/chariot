@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
-    num::NonZero,
     sync::Arc,
 };
 
@@ -14,6 +13,7 @@ use chariot_core::{
     },
     executor::{BuildManager, FailureMode},
     graph::BuildGraphBuilder,
+    jobserver::JobServer,
     tracer::Tracer,
     workdir::WorkDirectory,
 };
@@ -42,7 +42,6 @@ pub fn run_build<'a>(
     root_packages: &[&Arc<Package>],
     root_sources: &[&Arc<Source>],
     failure_mode: FailureMode,
-    worker_count: NonZero<usize>,
 ) -> Result<BuildManager<'a>> {
     let mut builder = BuildGraphBuilder::new();
     for &pkg in root_packages {
@@ -54,7 +53,7 @@ pub fn run_build<'a>(
     let graph = builder.finish();
 
     let manager = BuildManager::new(ctx, graph, tracer);
-    let report = manager.execute(failure_mode, worker_count);
+    let report = manager.execute(failure_mode);
     if !report.is_success() {
         bail!(
             "build failed: {} task(s) failed, {} skipped (see above for details)",
@@ -163,9 +162,12 @@ pub fn prepare_build(
         }
     }
 
+    let jobserver = JobServer::create(&workdir_parent, build_opts.parallelism).context("Failed to create jobserver")?;
+
     let ctx = CoreContext {
         build_cache_enabled,
         parallelism: build_opts.parallelism,
+        jobserver,
         bsdtar_pkgset: binary_to_pkgset.remove("bsdtar").unwrap(),
         git_pkgset: binary_to_pkgset.remove("git").unwrap(),
         patch_pkgset: binary_to_pkgset.remove("patch").unwrap(),

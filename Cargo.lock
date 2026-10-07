@@ -201,6 +201,7 @@ dependencies = [
  "chariot_rootfs",
  "chariot_runtime",
  "chariot_util",
+ "nix",
  "rusqlite",
  "thiserror",
  "xxhash-rust",

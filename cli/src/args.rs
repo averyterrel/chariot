@@ -147,15 +147,17 @@ pub struct CommonBuildOptions {
     #[arg(long, env = ARG_ROOTFS_ENV, help = ARG_ROOTFS_HELP, default_value = DEFAULT_ROOTFS_PATH)]
     pub rootfs: PathBuf,
 
-    #[arg(long, short = 'j', help = "parallelism passed to scripts", default_value_t = NonZero::try_from(4).unwrap())]
+    #[arg(
+        long,
+        short = 'j',
+        help = "total job budget shared across all tasks via a jobserver, passed to scripts as PARALLELISM/MAKEFLAGS",
+        default_value_t = available_parallelism().unwrap()
+    )]
     pub parallelism: NonZero<usize>,
 }
 
 #[derive(Args)]
 pub struct ExecutionOptions {
-    #[arg(long, help = "chariot workers count", default_value_t = available_parallelism().unwrap().div_ceil(NonZero::try_from(2).unwrap()))]
-    pub worker_count: NonZero<usize>,
-
     #[arg(long, help = "keep building unrelated packages after a failure instead of stopping immediately")]
     pub keep_going: bool,
 }
