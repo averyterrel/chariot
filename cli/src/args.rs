@@ -3,7 +3,7 @@ use std::{num::NonZero, path::PathBuf, thread::available_parallelism};
 use chariot_config::DEFAULT_BASE_CONFIG_PATH;
 use chariot_core::{config::script::ScriptLanguage, executor::FailureMode};
 use chariot_rootfs::DEFAULT_MANIFESTS_URL;
-use clap::{Args, Parser, Subcommand, value_parser};
+use clap::{Args, Parser, Subcommand, ValueEnum, value_parser};
 use clap_complete::Shell;
 
 const DEFAULT_CACHE_PATH: &str = ".chariot-cache";
@@ -39,6 +39,9 @@ pub enum MainCommand {
 
     #[command(about = "build package(s) without installing them")]
     Build(BuildOptions),
+
+    #[command(about = "lsp command")]
+    Lsp(LspOptions),
 
     #[command(about = "cache support commands")]
     Cache(CacheOptions),
@@ -259,6 +262,29 @@ pub struct BuildOptions {
 
     #[arg(required = true, help = "packages to build")]
     pub packages: Vec<String>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum SupportedLsp {
+    Clangd,
+}
+
+#[derive(Args)]
+pub struct LspOptions {
+    #[command(flatten)]
+    pub common_build_opts: CommonBuildOptions,
+
+    #[command(flatten)]
+    pub execution_opts: ExecutionOptions,
+
+    #[arg(long, short = 'm', help = "source mappings", value_parser = parse_kv)]
+    pub source_mappings: Vec<(String, String)>,
+
+    #[arg(help = "the lsp to use")]
+    pub lsp: SupportedLsp,
+
+    #[arg(help = "the package to run the lsp for")]
+    pub package: String,
 }
 
 #[derive(Args)]

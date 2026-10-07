@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
+    io::{Write, stderr},
     sync::Arc,
 };
 
@@ -18,7 +19,7 @@ use chariot_core::{
     workdir::WorkDirectory,
 };
 use chariot_rootfs::{CachedPkgSet, DEFAULT_MANIFESTS_URL, ManifestFetchSpec, RootFS};
-use log::{info, warn};
+use log::warn;
 
 use crate::{
     args::CommonBuildOptions,
@@ -69,7 +70,7 @@ pub fn prepare_build(
     cache: &Cache,
     build_opts: CommonBuildOptions,
     local_config: &CliConfig,
-    terminal: &Arc<Terminal>,
+    terminal: Option<&Arc<Terminal>>,
 ) -> Result<(CoreContext, Config, HashSet<(String, u128)>, WorkDirectory)> {
     let ResolvedProfile {
         workdir_parent,
@@ -81,13 +82,16 @@ pub fn prepare_build(
 
     let rootfs = Arc::new(match RootFS::get(&build_opts.rootfs).context("Failed to get rootfs")? {
         None => {
-            info!("No rootfs found");
+            let (bar, writer): (Option<usize>, &mut dyn Write) = match terminal {
+                Some(terminal) => {
+                    let bar = terminal.add_bar(format!("Initializing rootfs `{}`", base_config.rootfs.version));
 
-            let bar = terminal.add_bar(format!("Initializing rootfs `{}`", base_config.rootfs.version));
+                    terminal.set_bar_message(bar, "Downloading...");
 
-            terminal.set_bar_message(bar, "Downloading...");
-
-            let mut writer = terminal.get_bar_writer(bar);
+                    (Some(bar), &mut terminal.get_bar_writer(bar))
+                }
+                None => (None, &mut stderr()),
+            };
 
             let rootfs = RootFS::init(
                 &build_opts.rootfs,
@@ -96,13 +100,16 @@ pub fn prepare_build(
                     version: base_config.rootfs.version,
                     hash: base_config.rootfs.hash.clone(),
                 },
-                &mut writer,
+                writer,
             )
             .context("Failed to initialize rootfs")?;
 
-            terminal.remove_bar(bar);
+            if let Some(terminal) = terminal
+                && let Some(bar) = bar
+            {
+                terminal.remove_bar(bar);
+            }
 
-            info!("Successfully initialized the rootfs");
             rootfs
         }
         Some(rootfs) => {
@@ -142,12 +149,21 @@ pub fn prepare_build(
             bail!("This rootfs manifest is missing a required package mapping for the `{}` binary", binary);
         };
 
-        let bar = terminal.add_bar(format!("Fetching {} package set", pkg));
-        let mut writer = terminal.get_bar_writer(bar);
+        let (bar, writer): (Option<usize>, &mut dyn Write) = match terminal {
+            Some(terminal) => {
+                let bar = terminal.add_bar(format!("Fetching {} package set", pkg));
+                (Some(bar), &mut terminal.get_bar_writer(bar))
+            }
+            None => (None, &mut stderr()),
+        };
 
-        binary_to_pkgset.insert(binary, CachedPkgSet::get(&rootfs, &None, &BTreeSet::from([pkg]), &mut writer)?);
+        binary_to_pkgset.insert(binary, CachedPkgSet::get(&rootfs, &None, &BTreeSet::from([pkg]), writer)?);
 
-        terminal.remove_bar(bar);
+        if let Some(terminal) = terminal
+            && let Some(bar) = bar
+        {
+            terminal.remove_bar(bar);
+        }
     }
 
     let mut build_cache_enabled = HashSet::new();

@@ -18,6 +18,8 @@ use crate::{
     xbps::package_create,
 };
 
+pub const PACKAGE_BUILD_DIR: &str = "/chariot/build";
+
 pub(crate) fn build(
     ctx: &CoreContext,
     tracer: &dyn Tracer,
@@ -104,7 +106,7 @@ pub(crate) fn build(
         };
 
         let build_mount = Mount {
-            dest: PathBuf::from("/chariot/build"),
+            dest: PathBuf::from(PACKAGE_BUILD_DIR),
             kind: MountKind::Bind {
                 from: build_dir_path,
                 read_only: false,
@@ -119,7 +121,7 @@ pub(crate) fn build(
             .chain(&package.environment_variables)
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .chain([
-                ("BUILD_DIR", "/chariot/build"),
+                ("BUILD_DIR", PACKAGE_BUILD_DIR),
                 ("PREFIX", package.get_prefix()),
                 ("ARCH", package.get_arch()),
             ])
@@ -128,7 +130,7 @@ pub(crate) fn build(
         if let Some(configure) = &package.configure {
             let mut logger = tracer.package_step(id, PackageStep::Configure);
             let exit_code = exec_env.exec(
-                "/chariot/build",
+                PACKAGE_BUILD_DIR,
                 vec![&build_mount],
                 &base_env,
                 false,
@@ -148,7 +150,7 @@ pub(crate) fn build(
         if let Some(build) = &package.build {
             let mut logger = tracer.package_step(id, PackageStep::Build);
             let exit_code = exec_env.exec(
-                "/chariot/build",
+                PACKAGE_BUILD_DIR,
                 vec![&build_mount],
                 &base_env,
                 false,
@@ -169,7 +171,7 @@ pub(crate) fn build(
 
         let mut logger = tracer.package_step(id, PackageStep::Install);
         let exit_code = exec_env.exec(
-            "/chariot/build",
+            PACKAGE_BUILD_DIR,
             vec![
                 &build_mount,
                 &Mount {

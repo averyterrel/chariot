@@ -19,7 +19,7 @@ pub fn run(build_opts: BuildOptions, local_config: &CliConfig) -> Result<()> {
     let cache = Cache::get(&build_opts.common_build_opts.config_opts.cache)?;
 
     let mode = build_opts.execution_opts.failure_mode();
-    let (ctx, config, cached_hashes, _local_sources_workdir) = prepare_build(&cache, build_opts.common_build_opts, local_config, &terminal)?;
+    let (ctx, config, cached_hashes, _local_sources_workdir) = prepare_build(&cache, build_opts.common_build_opts, local_config, Some(&terminal))?;
 
     let platform = if build_opts.tool {
         PackagePlatform::Host

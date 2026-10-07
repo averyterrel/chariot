@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    io::stderr,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -10,6 +11,7 @@ use chariot_core::{
     tracer::{CapturingLogger, Logger, PackageStep, PrepareStep, SourceStep, TaskStatus, Tracer},
 };
 use console::{strip_ansi_codes, style};
+use log::info;
 
 use crate::terminal::Terminal;
 
@@ -54,20 +56,6 @@ impl CliTracer {
         ));
     }
 
-    fn label_for(kind: &TaskKind) -> String {
-        match kind {
-            TaskKind::Package { package, .. } => format!(
-                "{} {}",
-                match package.platform {
-                    PackagePlatform::Host => "tool",
-                    PackagePlatform::Target => "package",
-                },
-                package.name
-            ),
-            TaskKind::Source { source } => format!("source {}", source.name),
-        }
-    }
-
     fn bar_for(&self, id: TaskId) -> usize {
         let mut tasks = self.tasks.lock().unwrap();
         let state = tasks.get_mut(&id).expect("step logger requested before register_task");
@@ -85,11 +73,10 @@ impl Tracer for CliTracer {
         tasks.insert(
             id,
             TaskState {
-                label: Self::label_for(kind),
+                label: label_for(kind),
                 bar: None,
             },
         );
-        drop(tasks);
         self.advance_progress(1, 0, 0);
     }
 
@@ -163,6 +150,76 @@ impl Tracer for CliTracer {
 
     fn prepare_step(&self, id: TaskId, _step: PrepareStep) -> Box<dyn Logger> {
         self.step_logger(id)
+    }
+}
+
+pub struct SimpleTracer {
+    tasks: Mutex<HashMap<TaskId, TaskKind>>,
+}
+
+impl SimpleTracer {
+    pub fn new() -> Self {
+        Self {
+            tasks: Mutex::new(HashMap::new()),
+        }
+    }
+
+    fn step_logger(&self) -> Box<dyn Logger> {
+        Box::new(CapturingLogger::new(stderr()))
+    }
+}
+
+impl Tracer for SimpleTracer {
+    fn register_task(&self, id: TaskId, kind: &TaskKind) {
+        self.tasks.lock().unwrap().insert(id, kind.clone());
+    }
+
+    fn task_status(&self, id: TaskId, status: TaskStatus) {
+        let mut tasks = self.tasks.lock().unwrap();
+        let Some(kind) = tasks.get_mut(&id) else { return };
+
+        match status {
+            TaskStatus::Started => info!("Task {} started", label_for(kind)),
+            TaskStatus::CacheHit => info!("Task {} done (cache hit)", label_for(kind)),
+            TaskStatus::Finished => info!("Task {} done", label_for(kind)),
+            TaskStatus::Skipped => info!("Task {} skipped", label_for(kind)),
+            TaskStatus::Failed { message, log } => {
+                info!("Task {} failed ({})", label_for(kind), message);
+
+                if let Some(log) = log
+                    && !log.trim().is_empty()
+                {
+                    let line = "-".repeat(10);
+                    eprintln!("{line} start log {line}\n{}\n{line} end log {line}", strip_ansi_codes(&log));
+                }
+            }
+        }
+    }
+
+    fn package_step(&self, _id: TaskId, _step: PackageStep) -> Box<dyn Logger> {
+        self.step_logger()
+    }
+
+    fn source_step(&self, _id: TaskId, _step: SourceStep) -> Box<dyn Logger> {
+        self.step_logger()
+    }
+
+    fn prepare_step(&self, _id: TaskId, _step: PrepareStep) -> Box<dyn Logger> {
+        self.step_logger()
+    }
+}
+
+fn label_for(kind: &TaskKind) -> String {
+    match kind {
+        TaskKind::Package { package, .. } => format!(
+            "{} {}",
+            match package.platform {
+                PackagePlatform::Host => "tool",
+                PackagePlatform::Target => "package",
+            },
+            package.name
+        ),
+        TaskKind::Source { source } => format!("source {}", source.name),
     }
 }
 
