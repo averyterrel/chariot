@@ -30,7 +30,7 @@ impl BuildCache {
         self.path.join(format!("{}.{}.{}", platform.to_string(), name, arch))
     }
 
-    pub fn prune(&self, exclude: HashSet<(PackagePlatform, String)>) -> Result<(), FileSystemError> {
+    pub fn prune(&self, exclude: &HashSet<(PackagePlatform, String)>) -> Result<(), FileSystemError> {
         let _build_cache_lock = DirLock::exclusive(&self.path);
 
         for entry in dir_entries(&self.path)? {

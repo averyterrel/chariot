@@ -1,14 +1,14 @@
 use std::collections::HashSet;
 
 use anyhow::{Context, Result};
-use chariot_core::workdir::WorkDirectory;
+use chariot_core::{collect_all_hashes, workdir::WorkDirectory};
 use log::info;
 
 use crate::{
     args::{CacheCommand, CacheOptions},
     cache::{Cache, prune_store_and_ledger},
     cli_config::CliConfig,
-    config::{hash_config, load_profile_config, read_base_config_and_dir},
+    config::{load_profile_config, read_base_config_and_dir},
 };
 
 pub fn run(options: CacheOptions, local_config: &CliConfig) -> Result<()> {
@@ -45,9 +45,12 @@ pub fn run(options: CacheOptions, local_config: &CliConfig) -> Result<()> {
                     local_config.get_source_overrides(),
                 )?;
 
-                cache
-                    .1
-                    .profile_cache_hashes(false, &arch, &options.iter().collect(), &hash_config(&config))?;
+                let hashes = collect_all_hashes(&config)
+                    .into_iter()
+                    .map(|(cat, hash)| (cat.to_string(), hash))
+                    .collect();
+                let packages = config.packages.iter().map(|pkg| (pkg.platform, pkg.name.as_str())).collect();
+                cache.1.cache_profile(false, &arch, &options.iter().collect(), &hashes, &packages)?;
             }
 
             prune_store_and_ledger(&store, &ledger, &cache.1.all_cached_hashes()?)?;

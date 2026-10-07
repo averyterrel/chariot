@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use chariot_core::config::package::PackagePlatform;
 use rusqlite::{Connection, Transaction, params};
 
 pub struct Database(Mutex<Connection>);
@@ -37,6 +38,14 @@ impl Database {
                 category TEXT NOT NULL,
                 hash BLOB NOT NULL,
                 PRIMARY KEY(profile_id, category, hash),
+                FOREIGN KEY(profile_id) REFERENCES profile(id) ON DELETE CASCADE
+            ) STRICT;
+
+            CREATE TABLE IF NOT EXISTS cached_package (
+                profile_id INTEGER NOT NULL,
+                platform INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                PRIMARY KEY(profile_id, platform, name),
                 FOREIGN KEY(profile_id) REFERENCES profile(id) ON DELETE CASCADE
             ) STRICT;
             ",
@@ -78,12 +87,13 @@ impl Database {
         Ok(id)
     }
 
-    pub fn profile_cache_hashes(
+    pub fn cache_profile(
         &self,
         create_profile: bool,
         arch: &str,
         options: &HashMap<&String, &String>,
         hashes: &HashSet<(String, u128)>,
+        packages: &HashSet<(PackagePlatform, &str)>,
     ) -> Result<bool, rusqlite::Error> {
         let conn = self.0.lock().unwrap();
         let tx = conn.unchecked_transaction()?;
@@ -97,9 +107,25 @@ impl Database {
             }
         };
 
+        tx.execute("DELETE FROM cached_hash WHERE profile_id = ?", params![profile_id])?;
+        tx.execute("DELETE FROM cached_package WHERE profile_id = ?", params![profile_id])?;
+
         let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO cached_hash (profile_id, category, hash) VALUES (?, ?, ?)")?;
         for hash in hashes {
             stmt.execute(params![profile_id, hash.0, hash.1.to_be_bytes()])?;
+        }
+        drop(stmt);
+
+        let mut stmt = tx.prepare_cached("INSERT OR IGNORE INTO cached_package (profile_id, platform, name) VALUES (?, ?, ?)")?;
+        for package in packages {
+            stmt.execute(params![
+                profile_id,
+                match package.0 {
+                    PackagePlatform::Target => 0,
+                    PackagePlatform::Host => 1,
+                },
+                package.1
+            ])?;
         }
         drop(stmt);
 
@@ -113,6 +139,21 @@ impl Database {
         let mut stmt = conn.prepare("SELECT category, hash FROM cached_hash")?;
         stmt.query_map([], |row| {
             Ok((row.get::<usize, String>(0)?, u128::from_be_bytes(row.get::<usize, [u8; 16]>(1)?)))
+        })?
+        .collect::<Result<HashSet<_>, _>>()
+    }
+
+    pub fn all_cached_packages(&self) -> Result<HashSet<(PackagePlatform, String)>, rusqlite::Error> {
+        let conn = self.0.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT platform, name FROM cached_package")?;
+        stmt.query_map([], |row| {
+            Ok((
+                match row.get::<usize, i64>(0)? {
+                    0 => PackagePlatform::Target,
+                    _ => PackagePlatform::Host,
+                },
+                row.get::<usize, String>(1)?,
+            ))
         })?
         .collect::<Result<HashSet<_>, _>>()
     }

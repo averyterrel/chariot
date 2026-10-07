@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -44,11 +44,15 @@ pub fn resolve_profile(cache: &Cache, config_opts: ConfigOptions, local_config: 
         local_config.get_source_overrides(),
     )?;
 
-    let hashes = hash_config(&config);
+    let hashes = collect_all_hashes(&config)
+        .into_iter()
+        .map(|(cat, hash)| (cat.to_string(), hash))
+        .collect();
+    let packages = config.packages.iter().map(|pkg| (pkg.platform, pkg.name.as_str())).collect();
 
     if !cache
         .1
-        .profile_cache_hashes(false, &config_opts.arch, &options.iter().collect(), &hashes)?
+        .cache_profile(false, &config_opts.arch, &options.iter().collect(), &hashes, &packages)?
     {
         let ok = config_opts.allow_new_profiles
             || Confirm::new()
@@ -62,7 +66,7 @@ pub fn resolve_profile(cache: &Cache, config_opts: ConfigOptions, local_config: 
 
         cache
             .1
-            .profile_cache_hashes(true, &config_opts.arch, &options.iter().collect(), &hashes)?;
+            .cache_profile(true, &config_opts.arch, &options.iter().collect(), &hashes, &packages)?;
     }
 
     Ok(ResolvedProfile {
@@ -117,11 +121,4 @@ pub fn load_profile_config(
         source_overrides,
     )
     .context("Failed to evaluate lua config")
-}
-
-pub fn hash_config(config: &Config) -> HashSet<(String, u128)> {
-    collect_all_hashes(config)
-        .into_iter()
-        .map(|(cat, hash)| (cat.to_string(), hash))
-        .collect()
 }

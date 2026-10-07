@@ -62,7 +62,7 @@ pub fn run(install_opts: InstallOptions, local_config: &CliConfig) -> Result<()>
 
     if !local_config.disable_pruning {
         prune_store_and_ledger(&ctx.store, &ctx.ledger, &cache.1.all_cached_hashes()?)?;
-        ctx.build_cache.prune(ctx.build_cache_enabled)?;
+        ctx.build_cache.prune(&cache.1.all_cached_packages()?)?;
     }
 
     Ok(())
