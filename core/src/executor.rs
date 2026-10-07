@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BinaryHeap, HashMap, VecDeque},
     path::PathBuf,
     sync::{Arc, Condvar, Mutex},
     thread,
@@ -128,11 +128,32 @@ enum Termination {
 
 struct SchedulerState {
     in_degree: HashMap<TaskId, usize>,
-    ready: VecDeque<TaskId>,
+    ready: BinaryHeap<(usize, TaskId)>,
     pending_count: usize,
     pending: HashMap<TaskId, bool>,
     aborted: bool,
     report: BuildReport,
+}
+
+fn task_priorities(graph: &BuildGraph, dependents: &HashMap<TaskId, Vec<TaskId>>) -> HashMap<TaskId, usize> {
+    let mut remaining_dependents: HashMap<TaskId, usize> = dependents.iter().map(|(&id, deps)| (id, deps.len())).collect();
+    let mut queue: VecDeque<TaskId> = remaining_dependents.iter().filter(|&(_, &count)| count == 0).map(|(&id, _)| id).collect();
+
+    let mut priority: HashMap<TaskId, usize> = HashMap::new();
+    while let Some(id) = queue.pop_front() {
+        let level = dependents[&id].iter().map(|dependent| priority[dependent]).max().map_or(0, |max| max + 1);
+        priority.insert(id, level);
+
+        for &dep in graph.dependencies(id) {
+            let remaining = remaining_dependents.get_mut(&dep).unwrap();
+            *remaining -= 1;
+            if *remaining == 0 {
+                queue.push_back(dep);
+            }
+        }
+    }
+
+    priority
 }
 
 pub struct BuildManager<'a> {
@@ -167,7 +188,9 @@ impl<'a> BuildManager<'a> {
             }
         }
 
-        let ready: VecDeque<TaskId> = self.graph.ids().filter(|id| in_degree[id] == 0).collect();
+        let priority = task_priorities(&self.graph, &dependents);
+
+        let ready: BinaryHeap<(usize, TaskId)> = self.graph.ids().filter(|id| in_degree[id] == 0).map(|id| (priority[&id], id)).collect();
 
         let state = Mutex::new(SchedulerState {
             in_degree,
@@ -184,7 +207,7 @@ impl<'a> BuildManager<'a> {
                 let id = {
                     let mut state = state.lock().unwrap();
                     loop {
-                        if let Some(id) = state.ready.pop_front() {
+                        if let Some((_, id)) = state.ready.pop() {
                             break id;
                         }
 
@@ -197,17 +220,18 @@ impl<'a> BuildManager<'a> {
                 };
 
                 if mode == FailureMode::FailFast && state.lock().unwrap().aborted {
-                    self.complete(mode, &state, &dependents, &condvar, id, Termination::Skipped);
+                    self.complete(mode, &state, &dependents, &priority, &condvar, id, Termination::Skipped);
                     continue;
                 }
 
                 let token = self.ctx.jobserver.acquire();
                 let state = &state;
                 let dependents = &dependents;
+                let priority = &priority;
                 let condvar = &condvar;
                 scope.spawn(move || {
                     let _token = token;
-                    self.run_task(mode, state, dependents, condvar, id);
+                    self.run_task(mode, state, dependents, priority, condvar, id);
                 });
             }
         });
@@ -215,7 +239,15 @@ impl<'a> BuildManager<'a> {
         state.into_inner().unwrap().report
     }
 
-    fn run_task(&self, mode: FailureMode, state: &Mutex<SchedulerState>, dependents: &HashMap<TaskId, Vec<TaskId>>, condvar: &Condvar, id: TaskId) {
+    fn run_task(
+        &self,
+        mode: FailureMode,
+        state: &Mutex<SchedulerState>,
+        dependents: &HashMap<TaskId, Vec<TaskId>>,
+        priority: &HashMap<TaskId, usize>,
+        condvar: &Condvar,
+        id: TaskId,
+    ) {
         let kind = self.graph.kind(id);
 
         let result = match &kind {
@@ -247,7 +279,7 @@ impl<'a> BuildManager<'a> {
             }
         };
 
-        self.complete(mode, state, dependents, condvar, id, termination);
+        self.complete(mode, state, dependents, priority, condvar, id, termination);
     }
 
     fn complete(
@@ -255,6 +287,7 @@ impl<'a> BuildManager<'a> {
         mode: FailureMode,
         state: &Mutex<SchedulerState>,
         dependents: &HashMap<TaskId, Vec<TaskId>>,
+        priority: &HashMap<TaskId, usize>,
         condvar: &Condvar,
         id: TaskId,
         termination: Termination,
@@ -289,7 +322,7 @@ impl<'a> BuildManager<'a> {
                     let remaining = state.in_degree.get_mut(&dependent).unwrap();
                     *remaining -= 1;
                     if *remaining == 0 {
-                        state.ready.push_back(dependent);
+                        state.ready.push((priority[&dependent], dependent));
                     }
                 }
             }
