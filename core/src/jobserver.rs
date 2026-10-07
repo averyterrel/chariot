@@ -34,19 +34,13 @@ pub enum CreateJobServerError {
     Seed(#[source] Errno),
 }
 
-enum TokenKind {
-    Implicit,
-    Explicit,
-}
-
 pub struct JobToken<'a> {
     server: &'a JobServer,
-    kind: TokenKind,
 }
 
 impl Drop for JobToken<'_> {
     fn drop(&mut self) {
-        self.server.release(&self.kind);
+        self.server.release();
     }
 }
 
@@ -90,10 +84,7 @@ impl JobServer {
 
     pub fn acquire(&self) -> JobToken<'_> {
         if self.implicit_free.swap(false, Ordering::AcqRel) {
-            return JobToken {
-                server: self,
-                kind: TokenKind::Implicit,
-            };
+            return JobToken { server: self };
         }
 
         let mut token = [0u8; 1];
@@ -106,18 +97,10 @@ impl JobServer {
             }
         }
 
-        JobToken {
-            server: self,
-            kind: TokenKind::Explicit,
-        }
+        JobToken { server: self }
     }
 
-    fn release(&self, kind: &TokenKind) {
-        match kind {
-            TokenKind::Implicit => self.implicit_free.store(true, Ordering::Release),
-            TokenKind::Explicit => {
-                write(&self.fd, &[0u8]).expect("jobserver fifo write failed");
-            }
-        }
+    fn release(&self) {
+        write(&self.fd, &[0u8]).expect("jobserver fifo write failed");
     }
 }
