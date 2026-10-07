@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
-use chariot_core::{config::package::PackagePlatform, tracer::Tracer};
+use chariot_core::config::package::PackagePlatform;
 
 use crate::{
     args::BuildOptions,
@@ -31,9 +31,7 @@ pub fn run(build_opts: BuildOptions, local_config: &CliConfig) -> Result<()> {
         selected_packages.push(find_package(&config, platform, name)?);
     }
 
-    let tracer: Arc<dyn Tracer> = Arc::new(CliTracer::new(terminal.clone()));
-
-    if let Err(err) = run_build(&ctx, tracer, &selected_packages, &[], mode) {
+    if let Err(err) = run_build(&ctx, Arc::new(CliTracer::new(terminal.clone())), &selected_packages, &[], mode) {
         drop(render_handle);
         return Err(err);
     }

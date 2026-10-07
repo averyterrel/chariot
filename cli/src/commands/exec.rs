@@ -15,7 +15,7 @@ use chariot_core::{
         source::Source,
     },
     execenv::ExecEnv,
-    tracer::{CapturingLogger, Tracer},
+    tracer::CapturingLogger,
     workdir::WorkDirectory,
 };
 use chariot_rootfs::{CachedPkgSet, StderrTarget};
@@ -79,11 +79,9 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
         .map(|pkg| pkg.dependencies.sources.iter().chain(pkg.source.as_ref()).collect())
         .unwrap_or_default();
 
-    let tracer: Arc<dyn Tracer> = Arc::new(CliTracer::new(terminal.clone()));
-
     let manager = match run_build(
         &ctx,
-        tracer,
+        Arc::new(CliTracer::new(terminal.clone())),
         &packages.iter().chain(tools.iter()).copied().collect::<Vec<_>>(),
         &source_deps,
         mode,

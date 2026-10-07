@@ -1,7 +1,7 @@
 use std::{io::stdout, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Result;
-use chariot_core::{config::package::PackagePlatform, tracer::Tracer, xbps::package_install};
+use chariot_core::{config::package::PackagePlatform, xbps::package_install};
 use chariot_util::fs::make_path;
 
 use crate::{
@@ -32,9 +32,7 @@ pub fn run(install_opts: InstallOptions, local_config: &CliConfig) -> Result<()>
         selected_packages.push(find_package(&config, platform, name)?);
     }
 
-    let tracer: Arc<dyn Tracer> = Arc::new(CliTracer::new(terminal.clone()));
-
-    let manager = match run_build(&ctx, tracer, &selected_packages, &[], mode) {
+    let manager = match run_build(&ctx, Arc::new(CliTracer::new(terminal.clone())), &selected_packages, &[], mode) {
         Ok(manager) => manager,
         Err(err) => {
             drop(render_handle);

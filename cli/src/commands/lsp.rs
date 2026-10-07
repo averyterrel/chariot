@@ -17,7 +17,7 @@ use chariot_core::{
     },
     execenv::{EXECENV_SOURCE_DIRECTORY_PATH, EXECENV_SOURCES_DIRECTORY_PATH, EXECENV_SYSROOT_DIRECTORY_PATH, ExecEnv},
     package::PACKAGE_BUILD_DIR,
-    tracer::{CapturingLogger, Tracer},
+    tracer::CapturingLogger,
     workdir::WorkDirectory,
 };
 use chariot_rootfs::{CachedPkgSet, StderrTarget};
@@ -60,10 +60,9 @@ pub fn run(lsp_options: LspOptions, local_config: &CliConfig) -> Result<()> {
         &mut stderr(),
     )?;
 
-    let tracer: Arc<dyn Tracer> = Arc::new(SimpleTracer::new());
     let manager = run_build(
         &ctx,
-        tracer,
+        Arc::new(SimpleTracer::new()),
         &iter::chain(&build_env_pkg.dependencies.packages, &build_env_pkg.dependencies.tools).collect::<Vec<_>>(),
         &iter::chain(&build_env_pkg.dependencies.sources, &build_env_pkg.source).collect::<Vec<_>>(),
         mode,
