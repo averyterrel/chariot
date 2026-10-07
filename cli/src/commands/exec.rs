@@ -76,12 +76,20 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
         }
     }
 
-    let source_deps: Vec<&Arc<Source>> = build_env_pkg.map(|pkg| pkg.dependencies.sources.iter().collect()).unwrap_or_default();
+    let source_deps: Vec<&Arc<Source>> = build_env_pkg
+        .map(|pkg| pkg.dependencies.sources.iter().chain(pkg.source.as_ref()).collect())
+        .unwrap_or_default();
 
     let tracer: Arc<dyn Tracer> = Arc::new(CliTracer::new(terminal.clone()));
 
-    let root_packages: Vec<&Arc<Package>> = packages.iter().chain(tools.iter()).copied().collect();
-    let manager = match run_build(&ctx, tracer, &root_packages, &source_deps, mode, worker_count) {
+    let manager = match run_build(
+        &ctx,
+        tracer,
+        &packages.iter().chain(tools.iter()).copied().collect::<Vec<_>>(),
+        &source_deps,
+        mode,
+        worker_count,
+    ) {
         Ok(manager) => manager,
         Err(err) => {
             drop(render_handle);
