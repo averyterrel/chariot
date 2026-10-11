@@ -51,14 +51,8 @@ pub(crate) fn fetch(
 
                 let mut logger = tracer.source_step(id, SourceStep::FetchBase);
                 match &source.base {
-                    SourceBase::Archive(archive) => fetch_archive(ctx, &mut logger, archive).map_err(|err| ExecuteError::Archive {
-                        source: err,
-                        log: logger.captured(),
-                    })?,
-                    SourceBase::Git(git_source) => fetch_git_repository(ctx, &mut logger, git_source).map_err(|err| ExecuteError::Git {
-                        source: err,
-                        log: logger.captured(),
-                    })?,
+                    SourceBase::Archive(archive) => fetch_archive(ctx, &mut logger, archive)?,
+                    SourceBase::Git(git_source) => fetch_git_repository(ctx, &mut logger, git_source)?,
                     SourceBase::Local(local_source) => {
                         let work_dir = WorkDirectory::create(&ctx.workdir_parent)?;
                         copy_recursive(&local_source.cached_path, work_dir.path())?;
@@ -117,7 +111,7 @@ pub(crate) fn fetch(
                     )?;
 
                     if exit_code != 0 {
-                        return Err(ExecuteError::Patch { log: logger.captured() });
+                        return Err(ExecuteError::Patch);
                     }
                 }
 
@@ -151,17 +145,8 @@ pub(crate) fn fetch(
     }
 
     let mut pkgset_logger = tracer.prepare_step(id, PrepareStep::Pkgset);
-    let root_pkgset = CachedPkgSet::get(&ctx.rootfs, &None, &prepare.global_env.global_native_packages, &mut pkgset_logger).map_err(|err| {
-        ExecuteError::GetPkgSet {
-            source: err,
-            log: pkgset_logger.captured(),
-        }
-    })?;
-    let pkgset =
-        CachedPkgSet::get(&ctx.rootfs, &root_pkgset, &prepare.dependencies.native, &mut pkgset_logger).map_err(|err| ExecuteError::GetPkgSet {
-            source: err,
-            log: pkgset_logger.captured(),
-        })?;
+    let root_pkgset = CachedPkgSet::get(&ctx.rootfs, &None, &prepare.global_env.global_native_packages, &mut pkgset_logger)?;
+    let pkgset = CachedPkgSet::get(&ctx.rootfs, &root_pkgset, &prepare.dependencies.native, &mut pkgset_logger)?;
 
     let exec_env = ExecEnv::assemble(
         ctx,
@@ -216,7 +201,7 @@ pub(crate) fn fetch(
             )?;
 
             if exit_code != 0 {
-                return Err(ExecuteError::Prepare { log: logger.captured() });
+                return Err(ExecuteError::Prepare);
             }
 
             StoreEntry::from_workdir(&ctx.store, work_directory, "source.prepare", effective_hash)?

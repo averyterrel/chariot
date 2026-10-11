@@ -50,18 +50,8 @@ pub(crate) fn build(
         }
 
         let mut pkgset_logger = tracer.package_step(id, PackageStep::Pkgset);
-        let root_pkgset = CachedPkgSet::get(&ctx.rootfs, &None, &package.global_env.global_native_packages, &mut pkgset_logger).map_err(|err| {
-            ExecuteError::GetPkgSet {
-                source: err,
-                log: pkgset_logger.captured(),
-            }
-        })?;
-        let pkgset = CachedPkgSet::get(&ctx.rootfs, &root_pkgset, &package.dependencies.native, &mut pkgset_logger).map_err(|err| {
-            ExecuteError::GetPkgSet {
-                source: err,
-                log: pkgset_logger.captured(),
-            }
-        })?;
+        let root_pkgset = CachedPkgSet::get(&ctx.rootfs, &None, &package.global_env.global_native_packages, &mut pkgset_logger)?;
+        let pkgset = CachedPkgSet::get(&ctx.rootfs, &root_pkgset, &package.dependencies.native, &mut pkgset_logger)?;
 
         let exec_env = ExecEnv::assemble(
             ctx,
@@ -131,10 +121,7 @@ pub(crate) fn build(
             )?;
 
             if exit_code != 0 {
-                return Err(ExecuteError::Configure {
-                    exit_code,
-                    log: logger.captured(),
-                });
+                return Err(ExecuteError::Configure { exit_code });
             }
         }
 
@@ -151,10 +138,7 @@ pub(crate) fn build(
             )?;
 
             if exit_code != 0 {
-                return Err(ExecuteError::Build {
-                    exit_code,
-                    log: logger.captured(),
-                });
+                return Err(ExecuteError::Build { exit_code });
             }
         }
 
@@ -182,10 +166,7 @@ pub(crate) fn build(
         )?;
 
         if exit_code != 0 {
-            return Err(ExecuteError::Install {
-                exit_code,
-                log: logger.captured(),
-            });
+            return Err(ExecuteError::Install { exit_code });
         }
 
         let store_entry = StoreEntry::from_workdir(&ctx.store, install_workdir, "install", effective_hash)?;
@@ -222,11 +203,7 @@ pub(crate) fn build(
         &install_store_entry.path(),
         &workdir.path(),
         &mut logger,
-    )
-    .map_err(|err| ExecuteError::PackageCreate {
-        source: err,
-        log: logger.captured(),
-    })?;
+    )?;
 
     let store_entry = StoreEntry::from_workdir(&ctx.store, workdir, "pkg", effective_hash)?;
     ctx.ledger.record("pkg", pkg_hash, effective_hash)?;

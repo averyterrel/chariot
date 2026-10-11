@@ -19,7 +19,6 @@ use crate::{
         package::{Package, PackagePlatform},
         source::Source,
     },
-    tracer::Logger,
     workdir::WorkDirectory,
     xbps::{XBPSPackageInstallError, package_install},
 };
@@ -39,17 +38,7 @@ pub enum CreateExecEnvError {
         platform: PackagePlatform,
         name: String,
         source: XBPSPackageInstallError,
-        log: String,
     },
-}
-
-impl CreateExecEnvError {
-    pub fn captured_log(&self) -> Option<&str> {
-        match self {
-            Self::PackageInstall { log, .. } => Some(log),
-            Self::FileSystem(_) => None,
-        }
-    }
 }
 
 pub struct ExecEnv<'a> {
@@ -66,7 +55,7 @@ pub struct ExecEnv<'a> {
 impl<'a> ExecEnv<'a> {
     pub fn assemble(
         ctx: &'a CoreContext,
-        mut install_logger: impl FnMut() -> Box<dyn Logger>,
+        mut install_logger: impl FnMut() -> Box<dyn Write>,
         pkgset: Option<Arc<CachedPkgSet>>,
         source: Option<(&Source, Vec<PathBuf>)>,
         sources: &[(&Source, Vec<PathBuf>)],
@@ -96,7 +85,6 @@ impl<'a> ExecEnv<'a> {
                 platform: PackagePlatform::Target,
                 name: pkg.name.clone(),
                 source: err,
-                log: logger.captured(),
             })?;
         }
 
@@ -124,7 +112,6 @@ impl<'a> ExecEnv<'a> {
                     platform: PackagePlatform::Host,
                     name: tool.name.clone(),
                     source: err,
-                    log: logger.captured(),
                 })?;
             }
             Some(tool_overlay_workdir)

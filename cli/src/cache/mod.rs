@@ -9,16 +9,18 @@ use anyhow::{Context, Result, bail};
 use chariot_core::{buildcache::BuildCache, ledger::Ledger, resolve_effective_hashes, store::Store, workdir::WorkDirectoryParent};
 use chariot_util::fs::make_path;
 
-use crate::cache::db::Database;
+use crate::cache::{db::Database, tasklog::prune_logs};
 
 mod db;
 mod state;
+pub mod tasklog;
 
 pub const CACHE_VERSION: i64 = 1;
 
 const CACHE_SUBDIR_STORE: &str = "store";
 const CACHE_SUBDIR_BUILD_CACHE: &str = "builddirs";
 const CACHE_SUBDIR_WORKDIRS: &str = "workdirs";
+const CACHE_SUBDIR_LOGS: &str = "logs";
 const CACHE_FILENAME_LEDGER: &str = "ledger.db";
 const CACHE_FILENAME_GITIGNORE: &str = ".gitignore";
 const CACHE_FILENAME_DB: &str = "state.db";
@@ -50,6 +52,14 @@ impl Cache {
             path.as_ref().canonicalize().context("Failed to canonicalize cache path")?,
             Database::get(path.as_ref().join(CACHE_FILENAME_DB))?,
         ))
+    }
+
+    pub fn logs_path(&self) -> PathBuf {
+        self.0.join(CACHE_SUBDIR_LOGS)
+    }
+
+    pub fn prune_logs(&self, live_hashes: &HashSet<(String, u128)>) -> Result<()> {
+        prune_logs(self.logs_path(), live_hashes).context("Failed to prune logs")
     }
 
     pub fn open_store(&self) -> Result<Store> {

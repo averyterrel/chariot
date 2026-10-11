@@ -23,6 +23,7 @@ pub fn run(options: CacheOptions, local_config: &CliConfig) -> Result<()> {
 
             store.prune_store(HashSet::new()).context("Failed to purge store")?;
             ledger.prune(HashSet::new()).context("Failed to purge ledger")?;
+            cache.prune_logs(&HashSet::new()).context("Failed to purge logs")?;
         }
         CacheCommand::Gc {
             base_config: base_config_path,
@@ -53,7 +54,9 @@ pub fn run(options: CacheOptions, local_config: &CliConfig) -> Result<()> {
                 cache.1.cache_profile(false, &arch, &options.iter().collect(), &hashes, &packages)?;
             }
 
-            prune_store_and_ledger(&store, &ledger, &cache.1.all_cached_hashes()?)?;
+            let live_hashes = cache.1.all_cached_hashes()?;
+            prune_store_and_ledger(&store, &ledger, &live_hashes)?;
+            cache.prune_logs(&live_hashes)?;
         }
         CacheCommand::ListLedger => {
             let ledger = cache.open_ledger()?;

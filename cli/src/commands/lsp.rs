@@ -17,7 +17,6 @@ use chariot_core::{
     },
     execenv::{EXECENV_SOURCE_DIRECTORY_PATH, EXECENV_SOURCES_DIRECTORY_PATH, EXECENV_SYSROOT_DIRECTORY_PATH, ExecEnv},
     package::PACKAGE_BUILD_DIR,
-    tracer::CapturingLogger,
     workdir::WorkDirectory,
 };
 use chariot_rootfs::{CachedPkgSet, StderrTarget};
@@ -62,7 +61,7 @@ pub fn run(lsp_options: LspOptions, local_config: &CliConfig) -> Result<()> {
 
     let manager = run_build(
         &ctx,
-        Arc::new(SimpleTracer::new()),
+        Arc::new(SimpleTracer::new(cache.logs_path())),
         &iter::chain(&build_env_pkg.dependencies.packages, &build_env_pkg.dependencies.tools).collect::<Vec<_>>(),
         &iter::chain(&build_env_pkg.dependencies.sources, &build_env_pkg.source).collect::<Vec<_>>(),
         mode,
@@ -94,7 +93,7 @@ pub fn run(lsp_options: LspOptions, local_config: &CliConfig) -> Result<()> {
     info!("Assembling execution environment");
     let exec_env = ExecEnv::assemble(
         &ctx,
-        || Box::new(CapturingLogger::new(stderr())),
+        || Box::new(stderr()),
         pkgset,
         source.clone(),
         &sources,

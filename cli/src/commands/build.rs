@@ -31,13 +31,21 @@ pub fn run(build_opts: BuildOptions, local_config: &CliConfig) -> Result<()> {
         selected_packages.push(find_package(&config, platform, name)?);
     }
 
-    if let Err(err) = run_build(&ctx, Arc::new(CliTracer::new(terminal.clone())), &selected_packages, &[], mode) {
+    if let Err(err) = run_build(
+        &ctx,
+        Arc::new(CliTracer::new(terminal.clone(), cache.logs_path())),
+        &selected_packages,
+        &[],
+        mode,
+    ) {
         drop(render_handle);
         return Err(err);
     }
 
     if !local_config.disable_pruning {
-        prune_store_and_ledger(&ctx.store, &ctx.ledger, &cache.1.all_cached_hashes()?)?;
+        let live_hashes = cache.1.all_cached_hashes()?;
+        prune_store_and_ledger(&ctx.store, &ctx.ledger, &live_hashes)?;
+        cache.prune_logs(&live_hashes)?;
         ctx.build_cache.prune(&cache.1.all_cached_packages()?)?;
     }
 

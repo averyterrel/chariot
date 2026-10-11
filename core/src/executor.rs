@@ -36,50 +36,32 @@ pub enum ExecuteError {
     #[error(transparent)]
     Runtime(#[from] RuntimeError),
 
-    #[error("{source}")]
-    GetPkgSet { source: GetPkgSetError, log: String },
+    #[error(transparent)]
+    GetPkgSet(#[from] GetPkgSetError),
 
-    #[error("{source}")]
-    PackageCreate { source: XBPSPackageCreateError, log: String },
+    #[error(transparent)]
+    PackageCreate(#[from] XBPSPackageCreateError),
 
-    #[error("{source}")]
-    Archive { source: ArchiveFetchError, log: String },
+    #[error(transparent)]
+    Archive(#[from] ArchiveFetchError),
 
-    #[error("{source}")]
-    Git { source: GitFetchError, log: String },
+    #[error(transparent)]
+    Git(#[from] GitFetchError),
 
     #[error("Patch failed")]
-    Patch { log: String },
+    Patch,
 
     #[error("Configure failed with the exit code {}", exit_code)]
-    Configure { exit_code: i32, log: String },
+    Configure { exit_code: i32 },
 
     #[error("Build failed with the exit code {}", exit_code)]
-    Build { exit_code: i32, log: String },
+    Build { exit_code: i32 },
 
     #[error("Install failed with the exit code {}", exit_code)]
-    Install { exit_code: i32, log: String },
+    Install { exit_code: i32 },
 
     #[error("Prepare failed")]
-    Prepare { log: String },
-}
-
-impl ExecuteError {
-    pub fn captured_log(&self) -> Option<&str> {
-        match self {
-            Self::GetPkgSet { log, .. }
-            | Self::PackageCreate { log, .. }
-            | Self::Archive { log, .. }
-            | Self::Git { log, .. }
-            | Self::Configure { log, .. }
-            | Self::Build { log, .. }
-            | Self::Install { log, .. }
-            | Self::Patch { log }
-            | Self::Prepare { log } => Some(log),
-            Self::ExecEnv(err) => err.captured_log(),
-            Self::FileSystem(_) | Self::Database(_) | Self::Runtime(_) => None,
-        }
-    }
+    Prepare,
 }
 
 pub enum TaskOutput {
@@ -267,14 +249,7 @@ impl<'a> BuildManager<'a> {
             }
             Err(err) => {
                 let message = err.to_string();
-                let log = err.captured_log().map(str::to_owned);
-                self.tracer.task_status(
-                    id,
-                    TaskStatus::Failed {
-                        message: message.clone(),
-                        log,
-                    },
-                );
+                self.tracer.task_status(id, TaskStatus::Failed { message: message.clone() });
                 Termination::Failed(message)
             }
         };

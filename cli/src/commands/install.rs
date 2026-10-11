@@ -32,7 +32,13 @@ pub fn run(install_opts: InstallOptions, local_config: &CliConfig) -> Result<()>
         selected_packages.push(find_package(&config, platform, name)?);
     }
 
-    let manager = match run_build(&ctx, Arc::new(CliTracer::new(terminal.clone())), &selected_packages, &[], mode) {
+    let manager = match run_build(
+        &ctx,
+        Arc::new(CliTracer::new(terminal.clone(), cache.logs_path())),
+        &selected_packages,
+        &[],
+        mode,
+    ) {
         Ok(manager) => manager,
         Err(err) => return Err(err),
     };
@@ -60,7 +66,9 @@ pub fn run(install_opts: InstallOptions, local_config: &CliConfig) -> Result<()>
     }
 
     if !local_config.disable_pruning {
-        prune_store_and_ledger(&ctx.store, &ctx.ledger, &cache.1.all_cached_hashes()?)?;
+        let live_hashes = cache.1.all_cached_hashes()?;
+        prune_store_and_ledger(&ctx.store, &ctx.ledger, &live_hashes)?;
+        cache.prune_logs(&live_hashes)?;
         ctx.build_cache.prune(&cache.1.all_cached_packages()?)?;
     }
 

@@ -15,7 +15,6 @@ use chariot_core::{
         source::Source,
     },
     execenv::ExecEnv,
-    tracer::CapturingLogger,
     workdir::WorkDirectory,
 };
 use chariot_rootfs::{CachedPkgSet, StderrTarget};
@@ -81,7 +80,7 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
 
     let manager = match run_build(
         &ctx,
-        Arc::new(CliTracer::new(terminal.clone())),
+        Arc::new(CliTracer::new(terminal.clone(), cache.logs_path())),
         &packages.iter().chain(tools.iter()).copied().collect::<Vec<_>>(),
         &source_deps,
         mode,
@@ -112,7 +111,7 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
 
     let exec_env = ExecEnv::assemble(
         &ctx,
-        || Box::new(CapturingLogger::new(stderr())),
+        || Box::new(stderr()),
         pkgset,
         source,
         &sources,
