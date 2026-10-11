@@ -1,7 +1,7 @@
 use std::{num::NonZero, path::PathBuf, thread::available_parallelism};
 
 use chariot_config::DEFAULT_BASE_CONFIG_PATH;
-use chariot_core::{config::script::ScriptLanguage, executor::FailureMode};
+use chariot_core::executor::FailureMode;
 use chariot_rootfs::DEFAULT_MANIFESTS_URL;
 use clap::{Args, Parser, Subcommand, ValueEnum, value_parser};
 use clap_complete::Shell;
@@ -229,9 +229,6 @@ pub struct ExecOptions {
     #[arg(short, long, help = "bind mount(s) into the execution environment", value_parser = parse_mount)]
     pub mount: Vec<(String, String, bool, bool)>,
 
-    #[arg(long, help = "script language", default_value = "bash", value_parser = parse_language)]
-    pub language: ScriptLanguage,
-
     #[arg(long, help = "forward stdin into execution environment")]
     pub stdin: bool,
 
@@ -325,14 +322,6 @@ fn default_lsp_support_path() -> PathBuf {
 fn parse_kv(str: &str) -> Result<(String, String), String> {
     let pos = str.find('=').ok_or_else(|| format!("invalid KEY=VALUE: no `=` found in `{}`", str))?;
     Ok((str[..pos].to_string(), str[pos + 1..].to_string()))
-}
-
-fn parse_language(str: &str) -> Result<ScriptLanguage, String> {
-    match str {
-        "bash" | "sh" => Ok(ScriptLanguage::Bash),
-        "python" | "py" => Ok(ScriptLanguage::Python),
-        str => Err(format!("unknown script language `{}`", str)),
-    }
 }
 
 fn parse_mount(str: &str) -> Result<(String, String, bool, bool), String> {

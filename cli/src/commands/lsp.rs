@@ -9,10 +9,10 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use chariot_core::{
+    bash_command,
     buildcache::BuildDirectory,
     config::{
         package::{Package, PackagePlatform},
-        script::{Script, ScriptLanguage},
         source::{Source, SourceBase},
     },
     execenv::{EXECENV_SOURCE_DIRECTORY_PATH, EXECENV_SOURCES_DIRECTORY_PATH, EXECENV_SYSROOT_DIRECTORY_PATH, ExecEnv},
@@ -199,7 +199,7 @@ pub fn run(lsp_options: LspOptions, local_config: &CliConfig) -> Result<()> {
                         false,
                         Some(&mut stderr()),
                         StderrTarget::Merge,
-                        Script::bash("cp -r /chariot/source /chariot/merged").command(),
+                        bash_command("cp -r /chariot/source /chariot/merged"),
                         None,
                         true,
                         None,
@@ -232,16 +232,13 @@ pub fn run(lsp_options: LspOptions, local_config: &CliConfig) -> Result<()> {
     }
 
     let script = match lsp_options.lsp {
-        SupportedLsp::Clangd => Script::new(
-            ScriptLanguage::Bash,
-            format!(
-                "clangd --background-index --clang-tidy --path-mappings \"{}\"",
-                mappings
-                    .iter()
-                    .map(|(from, to)| format!("{}={}", from.to_string_lossy(), to.to_string_lossy()))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            ),
+        SupportedLsp::Clangd => format!(
+            "clangd --background-index --clang-tidy --path-mappings \"{}\"",
+            mappings
+                .iter()
+                .map(|(from, to)| format!("{}={}", from.to_string_lossy(), to.to_string_lossy()))
+                .collect::<Vec<_>>()
+                .join(",")
         ),
     };
 
@@ -255,7 +252,7 @@ pub fn run(lsp_options: LspOptions, local_config: &CliConfig) -> Result<()> {
         true,
         Some(&mut stdout_handle),
         StderrTarget::Capture(&mut stderr_handle),
-        script.command(),
+        bash_command(&script),
     )?;
 
     Ok(())

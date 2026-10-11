@@ -10,10 +10,9 @@ use chariot_util::fs::copy_recursive;
 use xxhash_rust::xxh3::Xxh3;
 
 use crate::{
-    CoreContext,
+    CoreContext, bash_command,
     config::{
         package::Package,
-        script::Script,
         source::{Source, SourceBase},
     },
     execenv::ExecEnv,
@@ -110,7 +109,7 @@ pub(crate) fn fetch(
                         false,
                         Some(&mut logger),
                         StderrTarget::Merge,
-                        Script::bash("echo \"$CHARIOT_PATCH\" | patch -p1").command(),
+                        bash_command("echo \"$CHARIOT_PATCH\" | patch -p1"),
                         ctx.patch_pkgset.as_deref(),
                         true,
                         None,
@@ -213,7 +212,7 @@ pub(crate) fn fetch(
                 false,
                 Some(&mut logger),
                 StderrTarget::Merge,
-                prepare.script.command(),
+                bash_command(&prepare.script),
             )?;
 
             if exit_code != 0 {

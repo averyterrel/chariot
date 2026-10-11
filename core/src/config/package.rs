@@ -8,7 +8,7 @@ use xxhash_rust::xxh3::Xxh3;
 
 use crate::{
     HOST_ARCH, HOST_PREFIX,
-    config::{CONFIG_VERSION, Dependencies, GlobalEnvironment, script::Script, source::Source},
+    config::{CONFIG_VERSION, Dependencies, GlobalEnvironment, source::Source},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -37,9 +37,9 @@ pub struct Package {
     pub dependencies: Dependencies,
     pub runtime_dependencies: Vec<Arc<Package>>,
     pub environment_variables: BTreeMap<String, String>,
-    pub configure: Option<Script>,
-    pub build: Option<Script>,
-    pub install: Script,
+    pub configure: Option<String>,
+    pub build: Option<String>,
+    pub install: String,
 }
 
 impl Package {

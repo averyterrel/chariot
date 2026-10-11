@@ -6,7 +6,7 @@ use chariot_util::{fs::force_rm_contents, hash::hash_directory};
 use xxhash_rust::xxh3::Xxh3;
 
 use crate::{
-    CoreContext,
+    CoreContext, bash_command,
     buildcache::BuildDirectory,
     config::{package::Package, source::Source},
     execenv::ExecEnv,
@@ -127,7 +127,7 @@ pub(crate) fn build(
                 false,
                 Some(&mut logger),
                 StderrTarget::Merge,
-                configure.command(),
+                bash_command(configure),
             )?;
 
             if exit_code != 0 {
@@ -147,7 +147,7 @@ pub(crate) fn build(
                 false,
                 Some(&mut logger),
                 StderrTarget::Merge,
-                build.command(),
+                bash_command(build),
             )?;
 
             if exit_code != 0 {
@@ -178,7 +178,7 @@ pub(crate) fn build(
             false,
             Some(&mut logger),
             StderrTarget::Merge,
-            package.install.command(),
+            bash_command(&package.install),
         )?;
 
         if exit_code != 0 {

@@ -82,3 +82,7 @@ pub fn resolve_effective_hashes<'a>(
     }
     Ok(resolved_hashes)
 }
+
+pub fn bash_command(script: &str) -> Vec<&str> {
+    vec!["bash", "-e", "-c", script]
+}

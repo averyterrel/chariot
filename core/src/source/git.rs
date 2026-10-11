@@ -4,11 +4,7 @@ use chariot_runtime::{Mount, MountKind, RuntimeError, StderrTarget};
 use chariot_util::fs::FileSystemError;
 use thiserror::Error;
 
-use crate::{
-    CoreContext,
-    config::{script::Script, source::GitSource},
-    workdir::WorkDirectory,
-};
+use crate::{CoreContext, bash_command, config::source::GitSource, workdir::WorkDirectory};
 
 #[derive(Debug, Error)]
 pub enum GitFetchError {
@@ -61,15 +57,14 @@ pub fn fetch_git_repository(ctx: &CoreContext, logger: &mut dyn Write, git_sourc
         false,
         Some(logger),
         StderrTarget::Merge,
-        Script::bash(
+        bash_command(
             r#"
             REMOTE_REF=$(git ls-remote "$GIT_URL" "refs/heads/$GIT_REV") || exit 1
             if [[ -n "$REMOTE_REF" ]]; then
                 exit 67
             fi
         "#,
-        )
-        .command(),
+        ),
         ctx.git_pkgset.as_deref(),
         true,
         None,
@@ -91,7 +86,7 @@ pub fn fetch_git_repository(ctx: &CoreContext, logger: &mut dyn Write, git_sourc
         false,
         Some(logger),
         StderrTarget::Merge,
-        Script::bash("git clone --depth=1 \"$GIT_URL\" .").command(),
+        bash_command("git clone --depth=1 \"$GIT_URL\" ."),
         ctx.git_pkgset.as_deref(),
         true,
         None,
@@ -109,7 +104,7 @@ pub fn fetch_git_repository(ctx: &CoreContext, logger: &mut dyn Write, git_sourc
         false,
         Some(logger),
         StderrTarget::Merge,
-        Script::bash("git fetch --depth=1 origin \"$GIT_REV\"").command(),
+        bash_command("git fetch --depth=1 origin \"$GIT_REV\""),
         ctx.git_pkgset.as_deref(),
         true,
         None,
@@ -127,7 +122,7 @@ pub fn fetch_git_repository(ctx: &CoreContext, logger: &mut dyn Write, git_sourc
         false,
         Some(logger),
         StderrTarget::Merge,
-        Script::bash("git checkout FETCH_HEAD").command(),
+        bash_command("git checkout FETCH_HEAD"),
         ctx.git_pkgset.as_deref(),
         true,
         None,

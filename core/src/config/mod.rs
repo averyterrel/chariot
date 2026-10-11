@@ -6,7 +6,6 @@ use std::{
 use crate::config::{package::Package, source::Source};
 
 pub mod package;
-pub mod script;
 pub mod source;
 
 /// Describes the config version. If the config format changes

@@ -9,7 +9,6 @@ use std::{
 use chariot_core::config::{
     Config, Dependencies, GlobalEnvironment,
     package::{Package, PackagePlatform},
-    script::{Script, ScriptLanguage},
     source::{Archive, ArchiveKind, GitSource, LocalSource, Source, SourceBase, SourcePrepare},
 };
 use chariot_util::{
@@ -272,7 +271,7 @@ pub fn eval_lua_config(
                             global_env: global_environment.clone(),
                             environment_variables,
                             dependencies,
-                            script: Script::new(ScriptLanguage::Bash, script),
+                            script,
                         })
                     }
                     _ => None,
@@ -373,9 +372,9 @@ pub fn eval_lua_config(
                 dependencies,
                 runtime_dependencies,
                 environment_variables,
-                configure: configure.map(|configure| Script::new(ScriptLanguage::Bash, configure)),
-                build: build.map(|build| Script::new(ScriptLanguage::Bash, build)),
-                install: Script::new(ScriptLanguage::Bash, install),
+                configure: configure.map(|configure| configure),
+                build: build.map(|build| build),
+                install: install,
             });
 
             l.app_data_mut::<ChariotAppData>().unwrap().packages.push(package.clone());

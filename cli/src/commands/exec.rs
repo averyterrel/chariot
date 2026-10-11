@@ -8,10 +8,10 @@ use std::{
 
 use anyhow::{Context, Result};
 use chariot_core::{
+    bash_command,
     buildcache::BuildDirectory,
     config::{
         package::{Package, PackagePlatform},
-        script::Script,
         source::Source,
     },
     execenv::ExecEnv,
@@ -152,8 +152,6 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
         _build_directories.push(build_dir);
     }
 
-    let script = Script::new(exec_options.language, exec_options.command);
-
     drop(render_handle);
 
     let mut stderr_handle = stderr();
@@ -171,7 +169,7 @@ pub fn run(exec_options: ExecOptions, local_config: &CliConfig) -> Result<()> {
             true => StderrTarget::Discard,
             false => StderrTarget::Capture(&mut stderr_handle),
         },
-        script.command(),
+        bash_command(&exec_options.command),
     )?;
 
     Ok(())

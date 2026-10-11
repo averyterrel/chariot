@@ -7,7 +7,7 @@ use std::{
 
 use xxhash_rust::xxh3::Xxh3;
 
-use crate::config::{CONFIG_VERSION, Dependencies, GlobalEnvironment, script::Script};
+use crate::config::{CONFIG_VERSION, Dependencies, GlobalEnvironment};
 
 #[derive(Debug, Hash)]
 pub struct Archive {
@@ -55,7 +55,7 @@ pub struct SourcePrepare {
     pub global_env: Arc<GlobalEnvironment>,
     pub dependencies: Dependencies,
     pub environment_variables: BTreeMap<String, String>,
-    pub script: Script,
+    pub script: String,
 }
 
 #[derive(Debug)]

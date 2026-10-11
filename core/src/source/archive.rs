@@ -11,11 +11,8 @@ use chariot_util::fs::FileSystemError;
 use thiserror::Error;
 
 use crate::{
-    CoreContext,
-    config::{
-        script::Script,
-        source::{Archive, ArchiveKind},
-    },
+    CoreContext, bash_command,
+    config::source::{Archive, ArchiveKind},
     workdir::WorkDirectory,
 };
 
@@ -96,7 +93,7 @@ pub fn download_archive(
         false,
         Some(logger),
         StderrTarget::Merge,
-        Script::bash("wget --no-hsts -q -O \"$ARCHIVE_PATH\" \"$ARCHIVE_URL\"").command(),
+        bash_command("wget --no-hsts -q -O \"$ARCHIVE_PATH\" \"$ARCHIVE_URL\""),
         wget_pkgset,
         true,
         None,
@@ -114,7 +111,7 @@ pub fn download_archive(
         false,
         Some(logger),
         StderrTarget::Merge,
-        Script::bash("echo \"$ARCHIVE_CHECKSUM  $ARCHIVE_PATH\n\" | sha256sum -c -").command(),
+        bash_command("echo \"$ARCHIVE_CHECKSUM  $ARCHIVE_PATH\n\" | sha256sum -c -"),
         sha256sum_pkgset,
         true,
         None,
@@ -140,9 +137,9 @@ pub fn extract_archive(
     let (pkgset, script) = match kind {
         ArchiveKind::Tar => (
             bsdtar_pkgset,
-            Script::bash("bsdtar --no-same-owner --strip-components 1 -x -C /chariot/dest -f /chariot/source"),
+            "bsdtar --no-same-owner --strip-components 1 -x -C /chariot/dest -f /chariot/source",
         ),
-        ArchiveKind::Zip => (unzip_pkgset, Script::bash("unzip -o /chariot/source -d /chariot/dest")),
+        ArchiveKind::Zip => (unzip_pkgset, "unzip -o /chariot/source -d /chariot/dest"),
     };
 
     let exit_code = rootfs.exec(
@@ -175,7 +172,7 @@ pub fn extract_archive(
         false,
         Some(logger),
         StderrTarget::Merge,
-        script.command(),
+        bash_command(script),
         pkgset,
         true,
         None,
