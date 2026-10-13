@@ -7,7 +7,6 @@ Chariot is a meta-build system used for building bootstrapping operating systems
 - Parallel package building
 - Highly flexible lua based config format
 - Custom rootfs support
-- Optimized for disk space using hardlinks and overlayfs
 - Hash based package invalidation
 
 ## Getting Started
