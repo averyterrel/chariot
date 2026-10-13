@@ -18,7 +18,7 @@ use chariot_core::ledger::Ledger;
 use chariot_util::{current_timestamp, fs::make_path, lock::DirLock};
 use std::fs::{rename, write};
 use tokio::sync::broadcast;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 mod api;

@@ -237,12 +237,8 @@ impl<'a> ExecEnv<'a> {
         }
         final_mounts.push(&mountpoint_readonly_remount);
 
-        let parallelism_string = self.ctx.parallelism.to_string();
-        let makeflags_string = format!(
-            "--jobserver-auth=fifo:{} -j{}",
-            EXECENV_JOBSERVER_PATH,
-            self.ctx.jobserver.total()
-        );
+        let parallelism_string = self.ctx.jobserver.total().to_string();
+        let makeflags_string = format!("--jobserver-auth=fifo:{} -j{}", EXECENV_JOBSERVER_PATH, self.ctx.jobserver.total());
 
         let mut base_env = HashMap::from([
             ("SOURCES_DIR", EXECENV_SOURCES_DIRECTORY_PATH),

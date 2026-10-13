@@ -181,7 +181,6 @@ pub fn prepare_build(
 
     let ctx = CoreContext {
         build_cache_enabled,
-        parallelism: build_opts.parallelism,
         jobserver,
         bsdtar_pkgset: binary_to_pkgset.remove("bsdtar").unwrap(),
         unzip_pkgset: binary_to_pkgset.remove("unzip").unwrap(),

@@ -15,14 +15,12 @@ use chariot_core::{
     config::{GlobalEnvironment, package::PackagePlatform},
     executor::{BuildManager, FailureMode},
     graph::BuildGraphBuilder,
+    jobserver::JobServer,
     store::Store,
     workdir::{WorkDirectory, WorkDirectoryParent},
 };
 use chariot_rootfs::{CachedPkgSet, DEFAULT_MANIFESTS_URL, ManifestFetchSpec, RootFS};
-use chariot_util::{
-    current_timestamp,
-    fs::{dir_entries, force_rm, force_rm_contents, join_soft, make_path},
-};
+use chariot_util::fs::{dir_entries, force_rm, force_rm_contents, join_soft, make_path};
 use git2::{FetchOptions, build::RepoBuilder};
 
 use crate::{
@@ -188,7 +186,7 @@ pub fn run_project_build(state: &Arc<BuildServerState>, store: &Arc<Store>, proj
     let rootfs = Arc::new(rootfs);
 
     let mut binary_to_pkgset: HashMap<&str, Option<Arc<CachedPkgSet>>> = HashMap::new();
-    for binary in ["bsdtar", "git", "patch", "sha256sum", "wget"] {
+    for binary in ["bsdtar", "git", "patch", "sha256sum", "wget", "unzip"] {
         let Some(pkg) = rootfs.lookup_package_of_binary(binary) else {
             bail!("This rootfs manifest is missing a required package mapping for the `{}` binary", binary);
         };
@@ -203,8 +201,10 @@ pub fn run_project_build(state: &Arc<BuildServerState>, store: &Arc<Store>, proj
     let build_cache_workdir = WorkDirectory::create(&workdir_parent)?;
     let build_cache = Arc::new(BuildCache::get(build_cache_workdir.path())?);
 
+    let jobserver = JobServer::create(&workdir_parent, NonZero::new(2).unwrap()).context("Failed to create jobserver")?;
+
     let core_context = CoreContext {
-        parallelism: NonZero::new(1).unwrap(),
+        jobserver,
         rootfs,
         workdir_parent,
         ledger: state.ledger.clone(),
@@ -212,6 +212,7 @@ pub fn run_project_build(state: &Arc<BuildServerState>, store: &Arc<Store>, proj
         build_cache,
         build_cache_enabled: HashSet::new(),
         bsdtar_pkgset: binary_to_pkgset.remove("bsdtar").unwrap(),
+        unzip_pkgset: binary_to_pkgset.remove("unzip").unwrap(),
         git_pkgset: binary_to_pkgset.remove("git").unwrap(),
         patch_pkgset: binary_to_pkgset.remove("patch").unwrap(),
         sha256sum_pkgset: binary_to_pkgset.remove("sha256sum").unwrap(),
@@ -219,7 +220,6 @@ pub fn run_project_build(state: &Arc<BuildServerState>, store: &Arc<Store>, proj
     };
 
     // let worker_count = available_parallelism().unwrap().div_ceil(NonZero::new(2).unwrap());
-    let worker_count = NonZero::new(2).unwrap();
 
     for profile in &project_config.profiles {
         let job_id = state.db.create_job(
@@ -286,7 +286,7 @@ pub fn run_project_build(state: &Arc<BuildServerState>, store: &Arc<Store>, proj
 
         let tracer = BuildServerTracer::new(state.clone(), job.clone());
         let build_manager = BuildManager::new(&core_context, build_graph, Arc::new(tracer));
-        let report = build_manager.execute(FailureMode::KeepGoing, worker_count);
+        let report = build_manager.execute(FailureMode::KeepGoing);
 
         let _ = state.event_channel.send(BuildServerEvent::JobEnd);
         *state.current_job.write().unwrap() = None;

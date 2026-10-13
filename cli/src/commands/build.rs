@@ -6,7 +6,7 @@ use chariot_core::config::package::PackagePlatform;
 use crate::{
     args::BuildOptions,
     build::{find_package, prepare_build, run_build},
-    cache::{Cache, prune_store_and_ledger},
+    cache::{prune_store_and_ledger, Cache},
     cli_config::CliConfig,
     terminal::Terminal,
     tracer::CliTracer,

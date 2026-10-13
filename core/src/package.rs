@@ -77,19 +77,23 @@ pub(crate) fn build(
             break 'install store_entry;
         }
 
-        let build_cachedir = BuildDirectory::get_rw(&ctx.build_cache, package.platform, package.get_arch(), &package.name)?;
-        if !ctx
-            .build_cache_enabled
-            .iter()
-            .any(|(platform, name)| platform == &package.platform && name == &package.name)
-        {
-            force_rm_contents(build_cachedir.path(), None)?;
-        };
+        // let build_cachedir = BuildDirectory::get_rw(&ctx.build_cache, package.platform, package.get_arch(), &package.name)?;
+        // if !ctx
+        //     .build_cache_enabled
+        //     .iter()
+        //     .any(|(platform, name)| platform == &package.platform && name == &package.name)
+        // {
+        //     force_rm_contents(build_cachedir.path(), None)?;
+        // };
+
+        // @hack: patch core use a work dir instead of a build dir because buildserver bullshit
+        let buildwork_dir = WorkDirectory::create(&ctx.workdir_parent)?;
+        println!("ahdashfhf");
 
         let build_mount = Mount {
             dest: PathBuf::from(PACKAGE_BUILD_DIR),
             kind: MountKind::Bind {
-                from: build_cachedir.path(),
+                from: buildwork_dir.path(),
                 read_only: false,
                 is_file: false,
             },

@@ -1,9 +1,12 @@
-use std::{io::stdout, sync::Arc};
+use std::{
+    io::{Write, stdout},
+    sync::Arc,
+};
 
 use chariot_core::{
     config::package::PackagePlatform,
     graph::{TaskId, TaskKind},
-    tracer::{CapturingLogger, Logger, PackageStep, PrepareStep, SourceStep, TaskStatus, Tracer},
+    tracer::{PackageStep, PrepareStep, SourceStep, TaskStatus, Tracer},
 };
 
 use crate::{
@@ -84,15 +87,18 @@ impl Tracer for BuildServerTracer {
         }
     }
 
-    fn package_step(&self, id: TaskId, step: PackageStep) -> Box<dyn Logger> {
-        Box::new(CapturingLogger::new(stdout()))
+    fn package_step(&self, id: TaskId, step: PackageStep) -> Box<dyn Write> {
+        println!("package_step {:?}", step);
+        Box::new(stdout())
     }
 
-    fn source_step(&self, id: TaskId, step: SourceStep) -> Box<dyn Logger> {
-        Box::new(CapturingLogger::new(stdout()))
+    fn source_step(&self, id: TaskId, step: SourceStep) -> Box<dyn Write> {
+        println!("source_step {:?}", step);
+        Box::new(stdout())
     }
 
-    fn prepare_step(&self, id: TaskId, step: PrepareStep) -> Box<dyn Logger> {
-        Box::new(CapturingLogger::new(stdout()))
+    fn prepare_step(&self, id: TaskId, step: PrepareStep) -> Box<dyn Write> {
+        println!("prepare_step {:?}", step);
+        Box::new(stdout())
     }
 }

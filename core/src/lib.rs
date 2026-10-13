@@ -31,7 +31,6 @@ pub const DEFAULT_TARGET_PREFIX: &str = "/usr";
 
 pub struct CoreContext {
     pub build_cache_enabled: HashSet<(PackagePlatform, String)>,
-    pub parallelism: NonZero<usize>,
     pub jobserver: JobServer,
     pub rootfs: Arc<RootFS>,
     pub store: Arc<Store>,
