@@ -10,6 +10,9 @@ use serde::Deserialize;
 
 use crate::args::LocalConfigFormat;
 
+const DEFAULT_TOML_PATH: &str = ".chariot.toml";
+const DEFAULT_JSON_PATH: &str = ".chariot.json";
+
 #[derive(Deserialize, Clone)]
 #[serde(untagged)]
 pub enum OverrideConfig {
@@ -62,7 +65,34 @@ impl CliConfig {
     }
 }
 
-pub fn parse_cli_config(path: impl AsRef<Path>, format: LocalConfigFormat) -> Result<CliConfig> {
+impl LocalConfigFormat {
+    fn default_path(&self) -> PathBuf {
+        match self {
+            Self::Toml => PathBuf::from(DEFAULT_TOML_PATH),
+            Self::Json => PathBuf::from(DEFAULT_JSON_PATH),
+        }
+    }
+}
+
+pub fn parse_cli_config(format: Option<LocalConfigFormat>, path: Option<impl AsRef<Path>>) -> Result<CliConfig> {
+    let (path, format) = match path {
+        Some(path) => (path.as_ref().to_path_buf(), format.unwrap()),
+        None => {
+            let format = match format {
+                None => {
+                    if exists(DEFAULT_TOML_PATH)? {
+                        LocalConfigFormat::Toml
+                    } else {
+                        LocalConfigFormat::Json
+                    }
+                }
+                Some(format) => format,
+            };
+
+            (format.default_path(), format)
+        }
+    };
+
     if !exists(&path)? {
         return Ok(CliConfig::default());
     }

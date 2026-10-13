@@ -25,16 +25,11 @@ pub enum LocalConfigFormat {
 #[derive(Parser)]
 #[command(version, next_line_help = true)]
 pub struct ChariotOptions {
-    #[arg(long, help = "format of the local config", default_value = "toml")]
-    pub local_config_format: LocalConfigFormat,
+    #[arg(long, help = "format of the local config")]
+    pub local_config_format: Option<LocalConfigFormat>,
 
-    #[arg(
-        long,
-        help = "path to local config",
-        default_value = ".chariot.toml",
-        default_value_if("local_config_format", "json", ".chariot.json")
-    )]
-    pub local_config: String,
+    #[arg(long, help = "path to local config", requires = "local_config_format")]
+    pub local_config: Option<String>,
 
     #[command(subcommand)]
     pub command: MainCommand,
