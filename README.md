@@ -1,11 +1,11 @@
 # Chariot
 
-Chariot is a meta-build system used for building bootstrapping operating systems written in rust.
+Chariot is a meta-build system written in Rust used for bootstrapping operating systems.
 
 ## Features
 - Zero runtime dependencies with a static binary
 - Parallel package building
-- Highly flexible lua based config format
+- Highly flexible Lua based config format
 - Custom rootfs support
 - Hash based package invalidation
 
@@ -13,14 +13,15 @@ Chariot is a meta-build system used for building bootstrapping operating systems
 
 ### For users
 There are several ways to install Chariot:
-- If you have `nix`, just run `nix shell github:chariot-build/chariot`
-- Download a statically linked musl binary from the [releases tab](https://github.com/chariot-build/chariot/releases)
-- Build from source using `cargo install --git https://github.com/chariot-build/chariot`
+- If you have `nix`, just run `nix shell github:chariot-build/chariot`.
+- Download a statically linked Linux binary from the [releases tab](https://github.com/chariot-build/chariot/releases)
+  and install it to a directory on your `$PATH`.
+- Build from source using `cargo install --git https://github.com/chariot-build/chariot`.
 
-Then use the `chariot` command
+Then use the `chariot` command.
 
 ### For developers
-A minimal project using chariot will have the primary config file `chariot_config.toml` and the main script file called `chariot.lua`.
+For a project using chariot, the primary config file is `chariot_config.toml`, and the main script file is `chariot.lua`.
 
 #### `chariot_config.toml`
 ```toml
@@ -29,7 +30,8 @@ version = "debian/20260901T000000Z"
 hash = "7a9147a2fce8ac2bae29fcde0b822ce613ffc73b66acf080c70301f386afee81"
 ```
 
-This file defines a few global options but the only required one is to define the rootfs as in the above example. It defines the name/version of it and the hash so it can be verified properly.
+This file defines a few global options but the only required one is to define the rootfs as in the above example.
+It defines the name/version of it and the hash so it can be verified properly.
 
 #### `chariot.lua`
 ```lua
@@ -62,14 +64,20 @@ Tool {
 }
 ```
 
-This file is the lua file that is executed first. It can use `require` to import other files but for this example the primary config will only build one host tool of NASM.
+This file is the Lua file that is executed first. It can use `require` to import other files but for this
+example the primary config will only build one host tool of NASM.
 
-The basic structure of defining a package is using the `Tool` or `Package` function with the arguments needed. The function returns a reference to the package so it can be used within the `dependencies` of another. `Source` works the same but can be inlined if it does not need to be exported.
+The basic structure of defining a package is using the `Tool` or `Package` function with the arguments needed.
+The function returns a reference to the package so it can be used within the `dependencies` of another.
+`Source` works the same but can be inlined if it does not need to be exported.
 
-Running `chariot install --arch x86_64 --tool nasm /tmp/nasm` will trigger the package to build and be installed in the folder given with it being created if needed.
+Running `chariot install --arch x86_64 --tool nasm /tmp/nasm` will trigger the package to build and be installed
+in the folder given with it being created if needed.
 
 ## Documentation
-The previous sections should be enough to get started but if you are still unsure on how to proceed or just want to learn about more features chariot has check the documentation at [chariot-build.dev](https://chariot-build.dev)
+The previous sections should be enough to get started but if you are still unsure on how to proceed or just want
+to learn about more features chariot has check the documentation at [chariot-build.dev](https://chariot-build.dev)
 
 ## Licensing
-Chariot is licensed under BSD-3-Clause itself and discloses third party licenses of crates under [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+Chariot is licensed under BSD-3-Clause itself and discloses third party licenses of crates under
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).

@@ -20,9 +20,9 @@
                     NIX_SHELL_NAME = "chariot";
 
                     nativeBuildInputs = with pkgs; [
-                        rustup
                         clang
                         lld
+                        rustup
                         sqlitebrowser
                     ];
                 };
